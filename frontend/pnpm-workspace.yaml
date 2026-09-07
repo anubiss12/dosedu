@@ -1,0 +1,6 @@
+packages:
+  - "landing"
+  - "s-admin"
+  - "director"
+  - "teacher"
+  - "app"

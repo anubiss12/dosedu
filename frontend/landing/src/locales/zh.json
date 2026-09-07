@@ -1,0 +1,183 @@
+{
+  "app": {
+    "title": "DOS EDUCATION"
+  },
+  "nav": {
+    "home": "首页",
+    "courses": "语言课程",
+    "prodlenka": "课后托管",
+    "login": "登录"
+  },
+  "hero": {
+    "title": "孩子的未来，从我们开始！",
+    "subtitle": "一个融合关爱与教育的成长空间。",
+    "ctaPrimary": "立即开始",
+    "ctaSecondary": "了解流程"
+  },
+  "leadForm": {
+    "title": "获取咨询",
+    "fullName": "姓名",
+    "phone": "电话号码",
+    "levelTest": "分级测试结果（选填）",
+    "submit": "预约咨询",
+    "success": "谢谢！我们会尽快与您联系。",
+    "error": "出现错误，请重试。"
+  },
+  "login": {
+    "title": "学生/家长登录",
+    "roleStudent": "我是学生",
+    "roleParent": "我是家长",
+    "identifierStudent": "登录名",
+    "identifierParent": "电话号码",
+    "password": "4位数字密码",
+    "submit": "登录",
+    "error": "登录名或密码错误",
+    "logout": "退出",
+    "identifier": "登录名 / 电话",
+    "forgotPassword": "忘记密码？",
+    "forgotPasswordHint": "请联系您的教师或中心管理员——我们会为您重置密码。"
+  },
+  "footer": {
+    "about": "语言课程与课后托管的统一教育平台。",
+    "phoneLabel": "联系方式",
+    "addressLabel": "我们的地址",
+    "privacyPolicy": "隐私政策",
+    "offer": "服务条款",
+    "rights": "版权所有。"
+  },
+  "progress": {
+    "title": "学习进度",
+    "level": "级别",
+    "streak": "连续学习天数"
+  },
+  "balance": {
+    "title": "余额",
+    "status": "付款状态",
+    "paid": "已付款",
+    "pending": "待付款",
+    "overdue": "已逾期"
+  },
+  "report": {
+    "title": "月度报告",
+    "download": "下载PDF",
+    "sendTelegram": "通过Telegram发送",
+    "sent": "已发送！"
+  },
+  "mockup": {
+    "journalTitle": "学生档案",
+    "scheduleTitle": "课程表",
+    "balanceTitle": "余额"
+  },
+  "howItWorks": {
+    "title": "工作流程",
+    "step1Title": "选择中心",
+    "step1Desc": "家长选择分校或课程方向",
+    "step2Title": "余额与课表",
+    "step2Desc": "查看上课时间和订阅状态",
+    "step3Title": "跟踪成果",
+    "step3Desc": "教师评分及扫码签到/签退提醒"
+  },
+  "whyUs": {
+    "title": "为什么选择我们？",
+    "item1Title": "经验丰富的教师",
+    "item1Desc": "拥有资质且经验丰富的教学团队",
+    "item2Title": "高质量的作业辅导",
+    "item2Desc": "每份作业都经过认真检查",
+    "item3Title": "及时的学习进度跟踪",
+    "item3Desc": "持续监督学习进度",
+    "item4Title": "安全舒适的环境",
+    "item4Desc": "为孩子提供舒适的环境",
+    "item5Title": "与家长保持联系",
+    "item5Desc": "通过Telegram机器人即时通知",
+    "item6Title": "现代化教学方法",
+    "item6Desc": "寓教于乐"
+  },
+  "stats": {
+    "stat1Number": "1",
+    "stat1Label": "分校",
+    "stat2Number": "11",
+    "stat2Label": "语言级别",
+    "stat3Number": "98%",
+    "stat3Label": "家长满意度"
+  },
+  "trial": {
+    "title": "试测",
+    "pickLanguage": "选择语言",
+    "english": "英语",
+    "chinese": "中文",
+    "question": "问题",
+    "scoreLabel": "正确数",
+    "contactPrompt": "请留下联系方式以获取完整结果和建议",
+    "submit": "提交",
+    "success": "谢谢！我们会尽快与您联系。"
+  },
+  "prodlenka": {
+    "title": "课后托管",
+    "intro": "放学后，您的孩子将在安全、受监督的环境中完成作业、用餐和休息。",
+    "point1": "教师监督下完成作业",
+    "point2": "每日用餐和休息时间",
+    "point3": "扫码到离即时通知家长",
+    "cta": "获取咨询"
+  },
+  "practice": {
+    "title": "练习测试",
+    "retake": "重新测试"
+  },
+  "official": {
+    "title": "官方分级测试",
+    "notice": "考试时间公布后将在此处开放。"
+  },
+  "programs": {
+    "title": "课程项目",
+    "prodlenka": {
+      "title": "课后托管",
+      "badge": "1–4年级",
+      "bullets": [
+        "检查家庭作业",
+        "预习功课",
+        "益智游戏",
+        "书法",
+        "哈萨克语",
+        "俄语"
+      ]
+    },
+    "mad": {
+      "title": "MAD学前班",
+      "badge": "6–7岁",
+      "bullets": [
+        "字母与发音",
+        "数数",
+        "读写练习",
+        "数学与逻辑",
+        "认识周围世界"
+      ]
+    },
+    "english": {
+      "title": "英语 + 外教",
+      "badge": "每周3次，每次1小时",
+      "bullets": [
+        "口语练习",
+        "语法与词汇",
+        "游戏化学习",
+        "每月一次外教课"
+      ]
+    },
+    "chinese": {
+      "title": "中文",
+      "badge": "每周2次，每次1小时",
+      "bullets": [
+        "听说能力培养",
+        "汉字学习",
+        "语法与词汇",
+        "文化体验",
+        "由合格教师授课"
+      ]
+    }
+  },
+  "banner": {
+    "title": "从今天开始学习吧！",
+    "playful": "寓教于乐",
+    "effective": "有趣且高效",
+    "resultOriented": "注重成果"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Супер Админ"
+  },
+  "nav": {
+    "health": "Жүйе денсаулығы",
+    "branches": "Филиалдар",
+    "directors": "Директорлар",
+    "logs": "Жүйе логтары"
+  },
+  "login": {
+    "title": "Супер Админ кірісі",
+    "identifier": "Email",
+    "password": "Құпия сөз (10 таңба)",
+    "submit": "Кіру",
+    "error": "Логин немесе құпия сөз қате"
+  },
+  "health": {
+    "title": "Global System Health",
+    "cpu": "Процессор",
+    "ram": "Жедел жады",
+    "disk": "Диск",
+    "postgres": "PostgreSQL",
+    "redis": "Redis",
+    "mainSite": "Негізгі сайт",
+    "appSite": "Студент/Ата-ана сайты",
+    "dbPool": "DB қосылымдары",
+    "idle": "бос"
+  },
+  "branches": {
+    "title": "Филиалдарды басқару",
+    "add": "Жаңа филиал қосу",
+    "name": "Атауы",
+    "address": "Мекенжайы",
+    "status": "Статусы",
+    "active": "Активті",
+    "blocked": "Бұғатталған",
+    "list": "Филиалдар тізімі"
+  },
+  "directors": {
+    "title": "Директор аккаунттарын құру",
+    "add": "Жаңа директор қосу",
+    "email": "Email",
+    "branch": "Филиал",
+    "create": "Құру",
+    "tempPasswordNotice": "8 таңбалы уақытша пароль автоматты түрде генерацияланады.",
+    "list": "Директорлар тізімі",
+    "fullName": "Аты-жөні"
+  }
+}

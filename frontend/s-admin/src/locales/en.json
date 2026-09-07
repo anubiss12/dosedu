@@ -1,0 +1,50 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Super Admin"
+  },
+  "nav": {
+    "health": "System Health",
+    "branches": "Branches",
+    "directors": "Directors",
+    "logs": "System Logs"
+  },
+  "login": {
+    "title": "Super Admin Login",
+    "identifier": "Email",
+    "password": "Password (10 characters)",
+    "submit": "Sign in",
+    "error": "Invalid login or password"
+  },
+  "health": {
+    "title": "Global System Health",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "disk": "Disk",
+    "postgres": "PostgreSQL",
+    "redis": "Redis",
+    "mainSite": "Main site",
+    "appSite": "Student/Parent portal",
+    "dbPool": "DB connections",
+    "idle": "idle"
+  },
+  "branches": {
+    "title": "Branch Management",
+    "add": "Add new branch",
+    "name": "Name",
+    "address": "Address",
+    "status": "Status",
+    "active": "Active",
+    "blocked": "Blocked",
+    "list": "Branch list"
+  },
+  "directors": {
+    "title": "Create Director Account",
+    "add": "Add new director",
+    "email": "Email",
+    "branch": "Branch",
+    "create": "Create",
+    "tempPasswordNotice": "An 8-character temporary password is generated automatically.",
+    "list": "Director list",
+    "fullName": "Full name"
+  }
+}

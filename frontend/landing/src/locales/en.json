@@ -1,0 +1,183 @@
+{
+  "app": {
+    "title": "DOS EDUCATION"
+  },
+  "nav": {
+    "home": "Home",
+    "courses": "Language Courses",
+    "prodlenka": "After-school Care",
+    "login": "Log in"
+  },
+  "hero": {
+    "title": "Your child's future starts with us!",
+    "subtitle": "A space that combines care and education for children.",
+    "ctaPrimary": "Start now",
+    "ctaSecondary": "How it works"
+  },
+  "leadForm": {
+    "title": "Get a consultation",
+    "fullName": "Full name",
+    "phone": "Phone number",
+    "levelTest": "Level test result (optional)",
+    "submit": "Request a consultation",
+    "success": "Thank you! We'll be in touch shortly.",
+    "error": "Something went wrong, please try again."
+  },
+  "login": {
+    "title": "Student/Parent sign in",
+    "roleStudent": "I'm a student",
+    "roleParent": "I'm a parent",
+    "identifierStudent": "Login",
+    "identifierParent": "Phone number",
+    "password": "4-digit code",
+    "submit": "Sign in",
+    "error": "Invalid login or code",
+    "logout": "Log out",
+    "identifier": "Login / phone",
+    "forgotPassword": "Forgot your password?",
+    "forgotPasswordHint": "Contact your teacher or the center's administration — your password will be reset."
+  },
+  "footer": {
+    "about": "A unified platform for language courses and after-school care.",
+    "phoneLabel": "Contact",
+    "addressLabel": "Our address",
+    "privacyPolicy": "Privacy Policy",
+    "offer": "Terms of Service",
+    "rights": "All rights reserved."
+  },
+  "progress": {
+    "title": "Progress",
+    "level": "Level",
+    "streak": "Day streak"
+  },
+  "balance": {
+    "title": "Balance",
+    "status": "Payment status",
+    "paid": "Paid",
+    "pending": "Pending",
+    "overdue": "Overdue"
+  },
+  "report": {
+    "title": "Monthly report",
+    "download": "Download PDF",
+    "sendTelegram": "Send via Telegram",
+    "sent": "Sent!"
+  },
+  "mockup": {
+    "journalTitle": "Student journal",
+    "scheduleTitle": "Schedule",
+    "balanceTitle": "Balance"
+  },
+  "howItWorks": {
+    "title": "How it works",
+    "step1Title": "Choose a center",
+    "step1Desc": "Parents pick a branch or program",
+    "step2Title": "Balance & schedule",
+    "step2Desc": "See lesson times and subscription status",
+    "step3Title": "Track results",
+    "step3Desc": "Teacher grades and QR check-in/out alerts"
+  },
+  "whyUs": {
+    "title": "Why us?",
+    "item1Title": "Experienced teachers",
+    "item1Desc": "A qualified, experienced teaching team",
+    "item2Title": "Quality homework support",
+    "item2Desc": "Every assignment is carefully checked",
+    "item3Title": "Timely progress tracking",
+    "item3Desc": "Continuous monitoring of progress",
+    "item4Title": "Safe, comfortable environment",
+    "item4Desc": "A comfortable setting for your child",
+    "item5Title": "Regular contact with parents",
+    "item5Desc": "Instant Telegram bot notifications",
+    "item6Title": "Modern teaching methods",
+    "item6Desc": "Learning through play"
+  },
+  "stats": {
+    "stat1Number": "1",
+    "stat1Label": "Branches",
+    "stat2Number": "11",
+    "stat2Label": "Language levels",
+    "stat3Number": "98%",
+    "stat3Label": "Parent satisfaction"
+  },
+  "trial": {
+    "title": "Trial test",
+    "pickLanguage": "Choose a language",
+    "english": "English",
+    "chinese": "Chinese",
+    "question": "Question",
+    "scoreLabel": "Correct answers",
+    "contactPrompt": "Leave your contact details to get the full result and a recommendation",
+    "submit": "Submit",
+    "success": "Thank you! We'll be in touch shortly."
+  },
+  "prodlenka": {
+    "title": "After-school care",
+    "intro": "After classes, your child does homework, eats, and rests in a safe, supervised environment.",
+    "point1": "Homework supervised by a teacher",
+    "point2": "Daily meals and rest time",
+    "point3": "Instant QR-based arrival/departure alerts for parents",
+    "cta": "Get a consultation"
+  },
+  "practice": {
+    "title": "Practice test",
+    "retake": "Retake"
+  },
+  "official": {
+    "title": "Official level test",
+    "notice": "Will become available here once the exam time is announced."
+  },
+  "programs": {
+    "title": "Programs",
+    "prodlenka": {
+      "title": "After-school care",
+      "badge": "Grades 1–4",
+      "bullets": [
+        "Homework check",
+        "Lesson preparation",
+        "Developmental games",
+        "Calligraphy",
+        "Kazakh language",
+        "Russian language"
+      ]
+    },
+    "mad": {
+      "title": "MAD Group",
+      "badge": "Ages 6–7",
+      "bullets": [
+        "Letters and sounds",
+        "Counting",
+        "Reading and writing",
+        "Math and logic",
+        "Learning about the world"
+      ]
+    },
+    "english": {
+      "title": "English + Native Speaker",
+      "badge": "3x/week, 1 hour each",
+      "bullets": [
+        "Speaking practice",
+        "Grammar and vocabulary",
+        "Learning through games",
+        "Native-speaker lesson once a month"
+      ]
+    },
+    "chinese": {
+      "title": "Chinese",
+      "badge": "2x/week, 1 hour each",
+      "bullets": [
+        "Speaking and listening practice",
+        "Learning characters",
+        "Grammar and vocabulary",
+        "Cultural immersion",
+        "Taught by qualified teachers"
+      ]
+    }
+  },
+  "banner": {
+    "title": "Let's start learning today!",
+    "playful": "We teach through play",
+    "effective": "Fun and effective",
+    "resultOriented": "Results-focused"
+  }
+}

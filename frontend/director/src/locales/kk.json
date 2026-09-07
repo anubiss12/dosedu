@@ -1,0 +1,98 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Директор"
+  },
+  "nav": {
+    "finance": "Қаржы",
+    "leads": "Өтінімдер (CRM)",
+    "staff": "Қызметкерлер",
+    "schedule": "Сабақ кестесі",
+    "reports": "Есептер"
+  },
+  "login": {
+    "title": "Директор кірісі",
+    "identifier": "Email",
+    "password": "Құпия сөз (8 таңба)",
+    "submit": "Кіру",
+    "error": "Логин немесе құпия сөз қате"
+  },
+  "leads": {
+    "title": "Leads Kanban",
+    "new": "Жаңа өтінім",
+    "contacted": "Хабарласылды",
+    "trial_scheduled": "Сынақ сабағына жазылды",
+    "paid": "Төлем жасады",
+    "lost": "Жоғалтылды"
+  },
+  "staff": {
+    "title": "Мұғалімдерді басқару",
+    "add": "Мұғалім қосу",
+    "fullName": "Аты-жөні",
+    "subject": "Пән / кабинет",
+    "create": "Құру",
+    "list": "Мұғалімдер тізімі",
+    "languageScope": "Тіл бағыты",
+    "languageScopeNone": "— (мад/продленка)",
+    "languageScopeEn": "Ағылшын тілі",
+    "languageScopeZh": "Қытай тілі"
+  },
+  "students": {
+    "title": "Оқушылар",
+    "name": "Аты-жөні",
+    "level": "Деңгей",
+    "balance": "Баланс",
+    "status": "Статус"
+  },
+  "payments": {
+    "title": "Төлемдер",
+    "student": "Оқушы",
+    "amount": "Сома",
+    "method": "Тәсіл",
+    "date": "Күні",
+    "status": "Статус"
+  },
+  "reports": {
+    "title": "Ай соңындағы есептер",
+    "overdueStudents": "Қарызгерлер",
+    "attendanceRate": "Қатысу көрсеткіші",
+    "overdue": "Қарызгерлер"
+  },
+  "finance": {
+    "title": "Филиал қаржысы",
+    "totalRevenue": "Жалпы кіріс",
+    "debtors": "Абонемент мерзімі бітіп қалғандар"
+  },
+  "tabs": {
+    "leads": "Өтінімдер",
+    "students": "Оқушылар",
+    "staff": "Қызметкерлер",
+    "payments": "Төлемдер",
+    "schedule": "Кесте",
+    "reports": "Есептер",
+    "tickets": "Өтініштер"
+  },
+  "schedule": {
+    "addRoom": "Кабинет қосу",
+    "roomName": "Кабинет атауы",
+    "add": "Қосу",
+    "addGroup": "Топ қосу",
+    "groupName": "Топ атауы",
+    "teacher": "Мұғалім",
+    "languageCourse": "Тіл курстары",
+    "prodlenka": "Продленка",
+    "level": "Деңгей",
+    "addSlot": "Сабақ кестесіне қосу",
+    "group": "Топ",
+    "room": "Кабинет",
+    "book": "Кестеге қосу",
+    "conflict": "Бұл кабinet/уақыт аралығы басқа сабаққа тағайындалған — конфликт бар.",
+    "grid": "Апталық кесте"
+  },
+  "tickets": {
+    "new": "Жаңа өтініш",
+    "subject": "Тақырып",
+    "message": "Хабарлама",
+    "open": "Ашу",
+    "inbox": "Өтініштер тізімі"
+  }
+}

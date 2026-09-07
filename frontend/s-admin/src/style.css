@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 4 custom brand fonts — drop any format (woff2/woff/ttf/otf) into
+   public/fonts/ using these exact filenames and it picks up
+   automatically, no code change needed. See ../FONTS.md. Until real
+   files exist here, the page falls back to Manrope/Inter. */
+@font-face {
+  font-family: "font-display";
+  src: url("/fonts/font-display.woff2") format("woff2"),
+       url("/fonts/font-display.woff") format("woff"),
+       url("/fonts/font-display.ttf") format("truetype"),
+       url("/fonts/font-display.otf") format("opentype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "font-body";
+  src: url("/fonts/font-body.woff2") format("woff2"),
+       url("/fonts/font-body.woff") format("woff"),
+       url("/fonts/font-body.ttf") format("truetype"),
+       url("/fonts/font-body.otf") format("opentype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "font-accent";
+  src: url("/fonts/font-accent.woff2") format("woff2"),
+       url("/fonts/font-accent.woff") format("woff"),
+       url("/fonts/font-accent.ttf") format("truetype"),
+       url("/fonts/font-accent.otf") format("opentype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "font-numeric";
+  src: url("/fonts/font-numeric.woff2") format("woff2"),
+       url("/fonts/font-numeric.woff") format("woff"),
+       url("/fonts/font-numeric.ttf") format("truetype"),
+       url("/fonts/font-numeric.otf") format("opentype");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --surface-1: #ffffff;
+  --surface-2: #f6f5fb;
+  --surface-3: #ece9f9;
+  --text: #16181c;
+  --text-muted: #5b6068;
+  --accent: #7c5cff;
+  --accent-contrast: #ffffff;
+  --accent-secondary: #6d28d9;
+  --border: #e1def4;
+  --danger: #d9534f;
+  --success: #2fa84f;
+  --badge-1-bg: #efe9ff;
+  --badge-1-fg: #7c5cff;
+  --badge-2-bg: #ffe4ec;
+  --badge-2-fg: #e0538a;
+  --badge-3-bg: #dcfbf0;
+  --badge-3-fg: #14b981;
+  --badge-4-bg: #fff2da;
+  --badge-4-fg: #e2941c;
+}
+
+html[data-theme="dark"] {
+  --surface-1: #15131f;
+  --surface-2: #1b1829;
+  --surface-3: #262233;
+  --text: #f2f3f5;
+  --text-muted: #a39dc0;
+  --accent: #9b86ff;
+  --accent-contrast: #14101f;
+  --accent-secondary: #a78bfa;
+  --border: #322c47;
+  --danger: #ff6b66;
+  --success: #4fd47a;
+  --badge-1-bg: #2c2350;
+  --badge-1-fg: #b7a4ff;
+  --badge-2-bg: #3d1f2b;
+  --badge-2-fg: #ff9fc2;
+  --badge-3-bg: #123328;
+  --badge-3-fg: #5eead4;
+  --badge-4-bg: #3a2a10;
+  --badge-4-fg: #fbbf6a;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  font-family: "font-body", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+h1, h2, h3, h4 {
+  font-family: "font-display", "Manrope", "Inter", sans-serif;
+}
+
+.font-accent {
+  font-family: "font-accent", "Manrope", "Inter", sans-serif;
+}
+
+.font-numeric {
+  font-family: "font-numeric", "Manrope", "Inter", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select {
+  font-family: inherit;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  width: 100%;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  /* Placeholder logo — drop the real logo.svg into public/ to replace
+     it, no code change needed. */
+}

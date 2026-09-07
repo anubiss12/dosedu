@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Teacher"
+  },
+  "nav": {
+    "schedule": "Daily Schedule",
+    "gradebook": "Gradebook",
+    "payments": "Payment Status",
+    "testUpload": "Upload Tests"
+  },
+  "login": {
+    "title": "Teacher Login",
+    "identifier": "Email",
+    "password": "Password (min. 6 characters)",
+    "submit": "Sign in",
+    "error": "Invalid login or password"
+  },
+  "gradebook": {
+    "group": "Group",
+    "load": "Load",
+    "present": "Present",
+    "absent": "Absent",
+    "excused": "Excused",
+    "grade": "Grade"
+  },
+  "payments": {
+    "title": "Confirm Payment",
+    "markPaid": "Mark as \"Paid\""
+  },
+  "testUpload": {
+    "title": "Upload Level Test",
+    "level": "Level",
+    "chooseFile": "Choose file (.csv, .xlsx, max 5 MB)",
+    "upload": "Upload",
+    "errorLog": "Error log",
+    "row": "Row",
+    "groupEnglish": "English",
+    "groupChinese": "Chinese",
+    "official": "Level-advancement test (one-time only)",
+    "success": "Uploaded successfully",
+    "questionsAdded": "questions added",
+    "history": "Upload history"
+  },
+  "certificate": {
+    "title": "Issue certificate",
+    "studentId": "Student ID",
+    "issue": "Generate certificate",
+    "success": "Certificate issued successfully!",
+    "error": "Something went wrong."
+  },
+  "tabs": {
+    "schedule": "Schedule",
+    "gradebook": "Gradebook",
+    "payment": "Payment",
+    "tests": "Upload Tests",
+    "certificate": "Certificate"
+  },
+  "schedule": {
+    "room": "Room"
+  },
+  "payment": {
+    "title": "Confirm payment",
+    "studentId": "Student ID",
+    "amount": "Amount",
+    "periodStart": "Period start",
+    "periodEnd": "Period end",
+    "confirm": "Confirm",
+    "success": "Payment confirmed.",
+    "error": "Something went wrong."
+  }
+}

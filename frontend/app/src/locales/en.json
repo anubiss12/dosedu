@@ -1,0 +1,73 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Cabinet"
+  },
+  "nav": {
+    "progress": "Progress",
+    "balance": "Balance",
+    "report": "PDF report"
+  },
+  "login": {
+    "title": "Sign in",
+    "identifier": "Login / phone",
+    "password": "4-digit code",
+    "submit": "Sign in",
+    "error": "Invalid login or code",
+    "forgotPassword": "Forgot your password?",
+    "forgotPasswordHint": "Contact your teacher or the center's administration."
+  },
+  "progress": {
+    "title": "Student progress",
+    "level": "Level",
+    "streak": "Day streak"
+  },
+  "balance": {
+    "title": "Balance",
+    "status": "Payment status",
+    "paid": "Paid",
+    "pending": "Pending",
+    "overdue": "Overdue"
+  },
+  "report": {
+    "title": "Monthly progress report",
+    "download": "Download PDF",
+    "sendTelegram": "Send via Telegram",
+    "sent": "Sent!",
+    "downloadError": "Could not download the file"
+  },
+  "portfolio": {
+    "title": "Portfolio / Certificates"
+  },
+  "practice": {
+    "title": "Practice test",
+    "retake": "Retake"
+  },
+  "official": {
+    "title": "Official level test",
+    "notice": "Will become available here once the exam time is announced."
+  },
+  "results": {
+    "title": "Results"
+  },
+  "language": {
+    "choose": "Choose your language track",
+    "chooseHint": "This can only be set once.",
+    "english": "English",
+    "chinese": "Chinese"
+  },
+  "quiz": {
+    "locked": "This test has already been taken",
+    "empty": "No test has been added for this level yet — it will appear here once a teacher uploads one.",
+    "question": "Question",
+    "score": "Score",
+    "retake": "Retake",
+    "startPractice": "Start practice",
+    "startOfficial": "Start official test",
+    "wrong": "Wrong answer",
+    "correctAnswer": "Correct answer",
+    "yourAnswer": "Your answer",
+    "explain": "Explain with AI",
+    "explainLoading": "Loading explanation…",
+    "explainLangLabel": "Explanation language"
+  }
+}

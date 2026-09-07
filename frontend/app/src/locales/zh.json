@@ -1,0 +1,73 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — 个人中心"
+  },
+  "nav": {
+    "progress": "学习进度",
+    "balance": "余额",
+    "report": "PDF报告"
+  },
+  "login": {
+    "title": "登录",
+    "identifier": "登录名 / 电话",
+    "password": "4位数字密码",
+    "submit": "登录",
+    "error": "登录名或密码错误",
+    "forgotPassword": "忘记密码？",
+    "forgotPasswordHint": "请联系您的教师或中心管理员。"
+  },
+  "progress": {
+    "title": "学生学习进度",
+    "level": "级别",
+    "streak": "连续学习天数"
+  },
+  "balance": {
+    "title": "余额",
+    "status": "付款状态",
+    "paid": "已付款",
+    "pending": "待付款",
+    "overdue": "已逾期"
+  },
+  "report": {
+    "title": "月度学习进度报告",
+    "download": "下载PDF",
+    "sendTelegram": "通过Telegram发送",
+    "sent": "已发送！",
+    "downloadError": "无法下载文件"
+  },
+  "portfolio": {
+    "title": "作品集 / 证书"
+  },
+  "practice": {
+    "title": "练习测试",
+    "retake": "重新测试"
+  },
+  "official": {
+    "title": "官方分级测试",
+    "notice": "考试时间公布后将在此处开放。"
+  },
+  "results": {
+    "title": "成绩"
+  },
+  "language": {
+    "choose": "选择语言方向",
+    "chooseHint": "此设置只能选择一次。",
+    "english": "英语",
+    "chinese": "中文"
+  },
+  "quiz": {
+    "locked": "该测试已完成",
+    "empty": "该级别暂无测试 — 教师上传后将显示在此处。",
+    "question": "问题",
+    "score": "成绩",
+    "retake": "重新测试",
+    "startPractice": "开始练习",
+    "startOfficial": "开始正式测试",
+    "wrong": "错误答案",
+    "correctAnswer": "正确答案",
+    "yourAnswer": "你的答案",
+    "explain": "AI 解释",
+    "explainLoading": "正在加载解释…",
+    "explainLangLabel": "解释语言"
+  }
+}

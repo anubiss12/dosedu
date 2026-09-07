@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — 教师"
+  },
+  "nav": {
+    "schedule": "每日课表",
+    "gradebook": "点名册",
+    "payments": "付款状态",
+    "testUpload": "上传测试"
+  },
+  "login": {
+    "title": "教师登录",
+    "identifier": "邮箱",
+    "password": "密码（至少6位）",
+    "submit": "登录",
+    "error": "登录名或密码错误"
+  },
+  "gradebook": {
+    "group": "班级",
+    "load": "加载",
+    "present": "出席",
+    "absent": "缺席",
+    "excused": "请假",
+    "grade": "成绩"
+  },
+  "payments": {
+    "title": "确认付款",
+    "markPaid": "标记为「已付款」"
+  },
+  "testUpload": {
+    "title": "上传分级测试",
+    "level": "级别",
+    "chooseFile": "选择文件（.csv、.xlsx，最大5MB）",
+    "upload": "上传",
+    "errorLog": "错误日志",
+    "row": "行",
+    "groupEnglish": "英语",
+    "groupChinese": "中文",
+    "official": "升级测试（仅一次）",
+    "success": "上传成功",
+    "questionsAdded": "已添加题目",
+    "history": "上传历史"
+  },
+  "certificate": {
+    "title": "颁发证书",
+    "studentId": "学生ID",
+    "issue": "生成证书",
+    "success": "证书已成功颁发！",
+    "error": "出现错误。"
+  },
+  "tabs": {
+    "schedule": "课表",
+    "gradebook": "点名册",
+    "payment": "付款",
+    "tests": "上传测试",
+    "certificate": "证书"
+  },
+  "schedule": {
+    "room": "教室"
+  },
+  "payment": {
+    "title": "确认付款",
+    "studentId": "学生ID",
+    "amount": "金额",
+    "periodStart": "开始日期",
+    "periodEnd": "结束日期",
+    "confirm": "确认",
+    "success": "付款已确认。",
+    "error": "出现错误。"
+  }
+}

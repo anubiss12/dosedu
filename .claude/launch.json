@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "landing",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/landing", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/app", "run", "dev"],
+      "port": 5177
+    },
+    {
+      "name": "teacher",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/teacher", "run", "dev"],
+      "port": 5176
+    },
+    {
+      "name": "director",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/director", "run", "dev"],
+      "port": 5175
+    },
+    {
+      "name": "s-admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/s-admin", "run", "dev"],
+      "port": 5174
+    }
+  ]
+}

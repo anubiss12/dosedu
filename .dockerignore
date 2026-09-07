@@ -1,0 +1,6 @@
+frontend/
+deploy/certbot/
+.git/
+.env
+*.md
+docs/

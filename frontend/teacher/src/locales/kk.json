@@ -1,0 +1,71 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Мұғалім"
+  },
+  "nav": {
+    "schedule": "Күнделікті кесте",
+    "gradebook": "Журнал",
+    "payments": "Төлем статусы",
+    "testUpload": "Тест жүктеу"
+  },
+  "login": {
+    "title": "Мұғалім кірісі",
+    "identifier": "Email",
+    "password": "Құпия сөз (кем дегенде 6 таңба)",
+    "submit": "Кіру",
+    "error": "Логин немесе құпия сөз қате"
+  },
+  "gradebook": {
+    "group": "Топ",
+    "load": "Жүктеу",
+    "present": "Бар",
+    "absent": "Жоқ",
+    "excused": "Себепті",
+    "grade": "Баға"
+  },
+  "payments": {
+    "title": "Төлемді растау",
+    "markPaid": "«Төленді» деп белгілеу"
+  },
+  "testUpload": {
+    "title": "Деңгейлік тест жүктеу",
+    "level": "Деңгей",
+    "chooseFile": "Файл таңдау (.csv, .xlsx, макс. 5 МБ)",
+    "upload": "Жүктеу",
+    "errorLog": "Қателер журналы",
+    "row": "Жол",
+    "groupEnglish": "Ағылшын тілі",
+    "groupChinese": "Қытай тілі",
+    "official": "Деңгей өткізу тесті (бір рет қана тапсырылады)",
+    "success": "Сәтті жүктелді",
+    "questionsAdded": "қосылған сұрақ",
+    "history": "Жүктеу тарихы"
+  },
+  "certificate": {
+    "title": "Сертификат беру",
+    "studentId": "Оқушы ID",
+    "issue": "Сертификат генерациялау",
+    "success": "Сертификат сәтті шығарылды!",
+    "error": "Қате орын алды."
+  },
+  "tabs": {
+    "schedule": "Кесте",
+    "gradebook": "Журнал",
+    "payment": "Төлем",
+    "tests": "Тест жүктеу",
+    "certificate": "Сертификат"
+  },
+  "schedule": {
+    "room": "Кабинет"
+  },
+  "payment": {
+    "title": "Төлемді растау",
+    "studentId": "Оқушы ID",
+    "amount": "Сомасы",
+    "periodStart": "Кезең басы",
+    "periodEnd": "Кезең соңы",
+    "confirm": "Растау",
+    "success": "Төлем расталды.",
+    "error": "Қате орын алды."
+  }
+}

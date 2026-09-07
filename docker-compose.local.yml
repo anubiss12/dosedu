@@ -1,0 +1,83 @@
+version: "3.9"
+
+# dosedu.kz — LOCAL TESTING stack.
+# No SSL, no certbot, no real domain needed. Just:
+#   1) add the /etc/hosts entries from deploy/LOCAL_TESTING.md
+#   2) docker compose -f docker-compose.local.yml up --build
+#   3) open http://dosedu.local (and the other subdomains)
+
+services:
+  api:
+    build: .
+    container_name: dosedu_api_local
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      HTTP_PORT: "8080"
+      POSTGRES_DSN: "postgres://dosedu:dosedu@postgres:5432/dosedu?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ""
+      JWT_SECRET: "local-testing-secret-not-for-production"
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_WEBHOOK_SECRET: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [dosedu_net]
+    expose: ["8080"]
+    ports:
+      - "8080:8080" # exposed directly too, handy for curl-ing the API while testing
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dosedu_postgres_local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dosedu
+      POSTGRES_PASSWORD: dosedu
+      POSTGRES_DB: dosedu
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+      - ./internal/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dosedu -d dosedu"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [dosedu_net]
+    ports:
+      - "5432:5432" # handy for connecting with a local psql/GUI client
+
+  redis:
+    image: redis:7-alpine
+    container_name: dosedu_redis_local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [dosedu_net]
+
+  nginx:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dosedu_nginx_local
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/local:/etc/nginx/conf.d:ro
+      - ./deploy/nginx/snippets:/etc/nginx/snippets:ro
+    networks: [dosedu_net]
+
+networks:
+  dosedu_net:
+    driver: bridge
+
+volumes:
+  postgres_data_local:

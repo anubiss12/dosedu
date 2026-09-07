@@ -1,0 +1,98 @@
+{
+  "app": {
+    "title": "DOS EDUCATION — Директор"
+  },
+  "nav": {
+    "finance": "Финансы",
+    "leads": "Заявки (CRM)",
+    "staff": "Сотрудники",
+    "schedule": "Расписание",
+    "reports": "Отчёты"
+  },
+  "login": {
+    "title": "Вход для директора",
+    "identifier": "Email",
+    "password": "Пароль (8 символов)",
+    "submit": "Войти",
+    "error": "Неверный логин или пароль"
+  },
+  "leads": {
+    "title": "Leads Kanban",
+    "new": "Новая заявка",
+    "contacted": "Связались",
+    "trial_scheduled": "Записан на пробный урок",
+    "paid": "Оплатил",
+    "lost": "Потеряна"
+  },
+  "staff": {
+    "title": "Управление преподавателями",
+    "add": "Добавить преподавателя",
+    "fullName": "ФИО",
+    "subject": "Предмет / кабинет",
+    "create": "Создать",
+    "list": "Список преподавателей",
+    "languageScope": "Языковое направление",
+    "languageScopeNone": "— (мад/продлёнка)",
+    "languageScopeEn": "Английский язык",
+    "languageScopeZh": "Китайский язык"
+  },
+  "students": {
+    "title": "Ученики",
+    "name": "ФИО",
+    "level": "Уровень",
+    "balance": "Баланс",
+    "status": "Статус"
+  },
+  "payments": {
+    "title": "Платежи",
+    "student": "Ученик",
+    "amount": "Сумма",
+    "method": "Способ",
+    "date": "Дата",
+    "status": "Статус"
+  },
+  "reports": {
+    "title": "Отчёты за месяц",
+    "overdueStudents": "Должники",
+    "attendanceRate": "Показатель посещаемости",
+    "overdue": "Должники"
+  },
+  "finance": {
+    "title": "Финансы филиала",
+    "totalRevenue": "Общий доход",
+    "debtors": "Истёк срок абонемента"
+  },
+  "tabs": {
+    "leads": "Заявки",
+    "students": "Ученики",
+    "staff": "Сотрудники",
+    "payments": "Платежи",
+    "schedule": "Расписание",
+    "reports": "Отчёты",
+    "tickets": "Обращения"
+  },
+  "schedule": {
+    "addRoom": "Добавить кабинет",
+    "roomName": "Название кабинета",
+    "add": "Добавить",
+    "addGroup": "Добавить группу",
+    "groupName": "Название группы",
+    "teacher": "Преподаватель",
+    "languageCourse": "Языковые курсы",
+    "prodlenka": "Продлёнка",
+    "level": "Уровень",
+    "addSlot": "Добавить в расписание",
+    "group": "Группа",
+    "room": "Кабинет",
+    "book": "Забронировать",
+    "conflict": "Этот кабинет/время уже занято другим занятием — конфликт.",
+    "grid": "Недельное расписание"
+  },
+  "tickets": {
+    "new": "Новое обращение",
+    "subject": "Тема",
+    "message": "Сообщение",
+    "open": "Открыть",
+    "inbox": "Список обращений"
+  }
+}
