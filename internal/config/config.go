@@ -19,7 +19,10 @@ type Config struct {
 	MaxUploadBytes        int64  // e.g. 5 MB limit for level-test file uploads
 	AnthropicAPIKey       string // optional — AI quiz-mistake explanations disabled until set
 	MainSiteURL           string // e.g. https://dosedu.kz — self-checked by /s-admin/health
-	AppSiteURL            string // e.g. https://app.dosedu.kz (student/parent portal) — self-checked by /s-admin/health
+	AppSiteURL            string // e.g. https://student.dosedu.kz (student/parent portal)
+	TeacherSiteURL        string // e.g. https://teacher.dosedu.kz
+	DirectorSiteURL       string // e.g. https://director.dosedu.kz
+	AdminSiteURL          string // e.g. https://admin.dosedu.kz
 }
 
 func Load() Config {
@@ -37,6 +40,9 @@ func Load() Config {
 		AnthropicAPIKey:       getEnv("ANTHROPIC_API_KEY", ""),
 		MainSiteURL:           getEnv("MAIN_SITE_URL", ""),
 		AppSiteURL:            getEnv("APP_SITE_URL", ""),
+		TeacherSiteURL:        getEnv("TEACHER_SITE_URL", ""),
+		DirectorSiteURL:       getEnv("DIRECTOR_SITE_URL", ""),
+		AdminSiteURL:          getEnv("ADMIN_SITE_URL", ""),
 	}
 }
 

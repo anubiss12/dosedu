@@ -43,16 +43,19 @@ func (d *Deps) UploadLevelTest(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only teachers may upload level tests"})
 		return
 	}
-	if claims.LanguageScope == "" {
+	if claims.Subject != "english" && claims.Subject != "chinese" {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":   "no_language_scope",
-			"message": "Сізге тіл бағыты тағайындалмаған — тест жүктеу қолжетімсіз.",
+			"error":   "no_subject",
+			"message": "Сізге тіл пәні тағайындалмаған — тест жүктеу қолжетімсіз.",
 		})
 		return
 	}
 
 	level := c.Param("level")
-	isOfficial := c.Query("official") == "true"
+	pool := "practice"
+	if c.Query("official") == "true" {
+		pool = "official"
+	}
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -117,7 +120,7 @@ func (d *Deps) UploadLevelTest(c *gin.Context) {
 		for i, q := range questions {
 			repoQuestions[i] = repository.NewQuestion(q)
 		}
-		if err := d.Questions.BulkInsert(c.Request.Context(), claims.BranchID, claims.UserID, claims.LanguageScope, level, isOfficial, repoQuestions); err != nil {
+		if err := d.Questions.BulkInsert(c.Request.Context(), claims.BranchID, claims.UserID, claims.Subject, level, pool, repoQuestions); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save questions"})
 			return
 		}
@@ -127,8 +130,8 @@ func (d *Deps) UploadLevelTest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"id":              uploadID,
 		"level":           level,
-		"language":        claims.LanguageScope,
-		"official":        isOfficial,
+		"subject":         claims.Subject,
+		"pool":            pool,
 		"file_name":       fileHeader.Filename,
 		"status":          status,
 		"error_log":       errorLog,

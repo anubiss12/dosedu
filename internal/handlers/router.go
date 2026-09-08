@@ -9,9 +9,12 @@ import (
 	"github.com/dosedu/lms/internal/middleware"
 )
 
-// SetupRouter wires every subdomain's routes to d's methods. In production,
-// Nginx routes s-admin./director./teacher.dosedu.kz to this same Gin
-// instance (or to separate deployments sharing this codebase).
+// SetupRouter wires every subdomain's routes to d's methods. In
+// production, Nginx routes admin./director./teacher./student.dosedu.kz
+// to this same Gin instance (or to separate deployments sharing this
+// codebase). RequireSubdomain is a defense-in-depth check on top of
+// each group's role restriction: a token's role must also match the
+// Host header's subdomain.
 func SetupRouter(d *Deps) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -21,6 +24,7 @@ func SetupRouter(d *Deps) *gin.Engine {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	sm := d.Sessions
+	subdomain := middleware.RequireSubdomain()
 
 	// ---- dosedu.kz (public landing) ----
 	public := r.Group("/public")
@@ -29,10 +33,12 @@ func SetupRouter(d *Deps) *gin.Engine {
 		public.POST("/auth/login", d.Login)
 		public.POST("/telegram/webhook", d.TelegramWebhook)
 		public.GET("/certificates/verify/:token", d.VerifyCertificate)
+		public.GET("/placement-test/questions", d.GetPlacementQuestions)
+		public.POST("/placement-test/submit", d.SubmitPlacementTest)
 	}
 
-	// ---- s-admin.dosedu.kz ----
-	superAdmin := r.Group("/s-admin", middleware.RequireAuth(sm, auth.RoleSuperAdmin))
+	// ---- admin.dosedu.kz (super admin — full network access) ----
+	superAdmin := r.Group("/s-admin", middleware.RequireAuth(sm, auth.RoleSuperAdmin), subdomain)
 	{
 		superAdmin.GET("/health", d.SystemHealth)
 		superAdmin.POST("/branches", d.CreateBranch)
@@ -40,10 +46,12 @@ func SetupRouter(d *Deps) *gin.Engine {
 		superAdmin.POST("/directors", d.CreateDirector)
 		superAdmin.GET("/directors", d.ListDirectors)
 		superAdmin.GET("/logs", d.ListSystemLogs)
+		superAdmin.POST("/impersonate/:role/:id", d.Impersonate)
+		superAdmin.GET("/impersonate/log", d.ListImpersonations)
 	}
 
-	// ---- director.dosedu.kz ----
-	director := r.Group("/director", middleware.RequireAuth(sm, auth.RoleDirector))
+	// ---- director.dosedu.kz (single branch OR whole network) ----
+	director := r.Group("/director", middleware.RequireAuth(sm, auth.RoleDirector), subdomain)
 	{
 		director.GET("/leads", d.ListLeads)
 		director.PATCH("/leads/:id/stage", d.MoveLeadStage)
@@ -65,8 +73,8 @@ func SetupRouter(d *Deps) *gin.Engine {
 		director.PATCH("/tickets/:id/status", d.SetTicketStatus)
 	}
 
-	// ---- teacher.dosedu.kz ----
-	teacher := r.Group("/teacher", middleware.RequireAuth(sm, auth.RoleTeacher))
+	// ---- teacher.dosedu.kz (language teachers + mad/prodlenka) ----
+	teacher := r.Group("/teacher", middleware.RequireAuth(sm, auth.RoleTeacher), subdomain)
 	{
 		teacher.GET("/schedule", d.GetTeacherSchedule)
 		teacher.POST("/attendance", d.MarkAttendance)
@@ -75,6 +83,9 @@ func SetupRouter(d *Deps) *gin.Engine {
 		teacher.POST("/payments/:studentId/confirm", d.ConfirmPayment)
 		teacher.POST("/tests/:level/upload", d.UploadLevelTest)
 		teacher.GET("/tests/uploads", d.ListTestUploads)
+		teacher.GET("/questions", d.ListQuestionBank)
+		teacher.POST("/groups/:groupId/test-assignments", d.CreateTestAssignment)
+		teacher.POST("/daily-logs", d.UpsertDailyLog)
 		teacher.POST("/certificates", d.IssueCertificate)
 		teacher.GET("/tickets", d.ListTickets)
 		teacher.POST("/tickets", d.CreateTicket)
@@ -82,8 +93,8 @@ func SetupRouter(d *Deps) *gin.Engine {
 		teacher.POST("/tickets/:id/messages", d.ReplyTicket)
 	}
 
-	// ---- student / parent (4-digit PIN login, e.g. app.dosedu.kz) ----
-	family := r.Group("/family", middleware.RequireAuth(sm, auth.RoleStudent, auth.RoleParent))
+	// ---- student.dosedu.kz (student / parent, 4-digit PIN login) ----
+	family := r.Group("/family", middleware.RequireAuth(sm, auth.RoleStudent, auth.RoleParent), subdomain)
 	{
 		family.GET("/progress", d.GetStudentProgress)
 		family.GET("/balance", d.GetBalance)
@@ -91,12 +102,14 @@ func SetupRouter(d *Deps) *gin.Engine {
 		family.POST("/report/telegram", d.SendMonthlyReportTelegram)
 		family.GET("/certificates", d.ListMyCertificates)
 		family.GET("/certificates/:id/pdf", d.GetCertificatePDF)
-		family.POST("/practice/attempts", d.RecordPracticeAttempt)
-		family.GET("/practice/attempts", d.ListPracticeAttempts)
-		family.POST("/profile/language", d.SetStudentLanguage)
-		family.GET("/questions", d.ListQuestions)
-		family.POST("/quiz/submit", d.SubmitQuiz)
-		family.POST("/quiz/explain", d.ExplainQuizMistake)
+		family.GET("/daily-logs", d.ListDailyLogs) // care_and_prep: attendance + note + homework
+		family.GET("/practice/questions", d.GetPracticeQuestions)
+		family.POST("/practice/submit", d.SubmitPracticeTest)
+		family.GET("/practice/history", d.ListPracticeHistory)
+		family.GET("/test-assignments/active", d.ListActiveTestAssignments)
+		family.GET("/test-assignments/:id/questions", d.GetTestAssignmentQuestions)
+		family.POST("/test-assignments/:id/submit", d.SubmitTestAssignment)
+		family.POST("/tests/explain", d.ExplainQuizMistake)
 		family.POST("/tickets", d.CreateTicket)
 		family.GET("/tickets/:id/messages", d.GetTicketThread)
 		family.POST("/tickets/:id/messages", d.ReplyTicket)

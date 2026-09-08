@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/dosedu/lms/internal/auth"
+	"github.com/dosedu/lms/internal/middleware"
 	"github.com/dosedu/lms/internal/repository"
 )
 
@@ -16,6 +17,7 @@ type CreateLeadRequest struct {
 	FullName        string `json:"full_name" binding:"required"`
 	Phone           string `json:"phone" binding:"required"`
 	LevelTestResult string `json:"level_test_result"`
+	Subject         string `json:"subject" binding:"omitempty,oneof=english chinese"`
 	BranchID        string `json:"branch_id"`
 }
 
@@ -35,7 +37,7 @@ func (d *Deps) CreateLead(c *gin.Context) {
 		return
 	}
 
-	id, err := d.Leads.Insert(c.Request.Context(), req.BranchID, req.FullName, req.Phone, req.LevelTestResult)
+	id, err := d.Leads.Insert(c.Request.Context(), req.BranchID, req.FullName, req.Phone, req.LevelTestResult, req.Subject)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not save lead"})
 		return
@@ -65,7 +67,6 @@ type MoveLeadStageRequest struct {
 // @Failure		404		{object}	map[string]string
 // @Router			/director/leads/{id}/stage [patch]
 func (d *Deps) MoveLeadStage(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
 	leadID := c.Param("id")
 
 	var req MoveLeadStageRequest
@@ -74,7 +75,8 @@ func (d *Deps) MoveLeadStage(c *gin.Context) {
 		return
 	}
 
-	if err := d.Leads.UpdateStage(c.Request.Context(), leadID, claims.BranchID, req.Stage); err != nil {
+	effectiveBranch := middleware.EffectiveBranchID(c)
+	if err := d.Leads.UpdateStage(c.Request.Context(), leadID, effectiveBranch, req.Stage); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "lead not found in your branch"})
 		return
 	}
@@ -82,9 +84,9 @@ func (d *Deps) MoveLeadStage(c *gin.Context) {
 	resp := gin.H{"id": leadID, "stage": req.Stage}
 
 	if req.Stage == "paid" {
-		lead, err := d.Leads.GetByID(c.Request.Context(), leadID, claims.BranchID)
+		lead, err := d.Leads.GetByID(c.Request.Context(), leadID, effectiveBranch)
 		if err == nil {
-			loginCode, pin, studentID, provErr := d.provisionStudentFromLead(c, claims.BranchID, lead)
+			loginCode, pin, studentID, provErr := d.provisionStudentFromLead(c, lead.BranchID, lead)
 			if provErr == nil {
 				resp["student_created"] = true
 				resp["student_id"] = studentID
@@ -115,12 +117,12 @@ func (d *Deps) provisionStudentFromLead(c *gin.Context, branchID string, lead *r
 		return "", "", "", err
 	}
 
-	level := lead.LevelTestResult
-	if level == "" {
-		level = "Beginner (A1)"
+	subject := lead.Subject
+	if subject == "" {
+		subject = "english" // fallback for a lead that never took the placement test
 	}
 
-	studentID, err = d.Students.CreateFromLead(c.Request.Context(), branchID, lead.FullName, loginCode, hash, level)
+	studentID, err = d.Students.CreateFromLead(c.Request.Context(), branchID, lead.FullName, loginCode, hash, subject)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -146,7 +148,7 @@ func generatePIN() (string, error) {
 func (d *Deps) ListLeads(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
 
-	columns, err := d.Leads.ListByBranchGroupedByStage(c.Request.Context(), claims.BranchID)
+	columns, err := d.Leads.ListByBranchGroupedByStage(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load leads"})
 		return

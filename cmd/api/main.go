@@ -27,6 +27,7 @@ import (
 	"github.com/dosedu/lms/internal/auth"
 	"github.com/dosedu/lms/internal/config"
 	"github.com/dosedu/lms/internal/handlers"
+	"github.com/dosedu/lms/internal/ratelimit"
 	"github.com/dosedu/lms/internal/repository"
 	"github.com/dosedu/lms/internal/telegram"
 )
@@ -76,15 +77,20 @@ func main() {
 		Branches:              repository.NewBranchRepo(store),
 		AdminDirectors:        repository.NewAdminDirectorRepo(store),
 		SystemLogs:            repository.NewSystemLogRepo(store),
-		Practice:              repository.NewPracticeRepo(store),
-		Quiz:                  repository.NewQuizRepo(store),
 		Questions:             repository.NewQuestionRepo(store),
+		TestAssignments:       repository.NewTestAssignmentRepo(store),
+		DailyLogs:             repository.NewDailyLogRepo(store),
+		Impersonation:         repository.NewImpersonationRepo(store),
 		TestUploads:           repository.NewTestUploadRepo(store),
 		Payments:              repository.NewPaymentRepo(store),
 		AI:                    ai.NewClient(cfg.AnthropicAPIKey),
 		Redis:                 rdb,
+		RateLimit:             ratelimit.New(rdb),
 		MainSiteURL:           cfg.MainSiteURL,
 		AppSiteURL:            cfg.AppSiteURL,
+		TeacherSiteURL:        cfg.TeacherSiteURL,
+		DirectorSiteURL:       cfg.DirectorSiteURL,
+		AdminSiteURL:          cfg.AdminSiteURL,
 	}
 
 	router := handlers.SetupRouter(deps)

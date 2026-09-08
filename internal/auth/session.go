@@ -15,10 +15,17 @@ type Claims struct {
 	UserID   string `json:"uid"`
 	Role     Role   `json:"role"`
 	BranchID string `json:"branch_id,omitempty"` // empty for super_admin
-	// LanguageScope restricts a teacher to one language's tests/content
-	// ("en" | "zh"); empty for mad/prodlenka teachers and every other
-	// role. Set once at login from teachers.language_scope.
-	LanguageScope string `json:"language_scope,omitempty"`
+	// Subject scopes a teacher to one course_subject ("english" |
+	// "chinese" | "mad" | "prodlenka"); empty if not yet assigned.
+	// Language-course teachers (english/chinese) get test-bank access;
+	// care_and_prep teachers (mad/prodlenka) get daily-log access only.
+	// Set once at login from teachers.subject.
+	Subject string `json:"subject,omitempty"`
+	// IsNetworkOwner, for a director, means "manage every branch" —
+	// BranchID stays their home branch, but handlers should use
+	// middleware.EffectiveBranchID instead of BranchID directly so this
+	// takes effect uniformly.
+	IsNetworkOwner bool `json:"is_network_owner,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -41,14 +48,15 @@ func isStaffRole(r Role) bool {
 // IssueSession creates a JWT and, for staff roles, registers a Redis key
 // that expires on idle timeout. Renewing activity is handled by
 // TouchSession on every authenticated request.
-func (sm *SessionManager) IssueSession(ctx context.Context, userID string, role Role, branchID, languageScope string) (string, error) {
+func (sm *SessionManager) IssueSession(ctx context.Context, userID string, role Role, branchID, subject string, isNetworkOwner bool) (string, error) {
 	sessionID := uuid.NewString()
 
 	claims := Claims{
-		UserID:        userID,
-		Role:          role,
-		BranchID:      branchID,
-		LanguageScope: languageScope,
+		UserID:         userID,
+		Role:           role,
+		BranchID:       branchID,
+		Subject:        subject,
+		IsNetworkOwner: isNetworkOwner,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ID:        sessionID,

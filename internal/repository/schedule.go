@@ -47,12 +47,13 @@ func (r *ScheduleRepo) CreateSlot(ctx context.Context, branchID, groupID, teache
 }
 
 // ListByBranch returns the full weekly grid for the director's
-// Schedule & Conflict Monitor view.
+// Schedule & Conflict Monitor view. branchID "" (network-owner
+// director / super_admin) returns every branch's grid.
 func (r *ScheduleRepo) ListByBranch(ctx context.Context, branchID string) ([]ScheduleSlot, error) {
 	rows, err := r.store.Pool.Query(ctx, `
 		SELECT id, group_id, teacher_id, room_id, weekday, start_time::text, end_time::text
 		FROM schedule_slots
-		WHERE branch_id = $1
+		WHERE ($1 = '' OR branch_id = $1::uuid)
 		ORDER BY weekday, start_time
 	`, branchID)
 	if err != nil {
@@ -87,7 +88,9 @@ func (r *ScheduleRepo) CreateRoom(ctx context.Context, branchID, name string) (s
 }
 
 func (r *ScheduleRepo) ListRooms(ctx context.Context, branchID string) ([]Room, error) {
-	rows, err := r.store.Pool.Query(ctx, `SELECT id, name FROM rooms WHERE branch_id = $1 ORDER BY name`, branchID)
+	rows, err := r.store.Pool.Query(ctx, `
+		SELECT id, name FROM rooms WHERE ($1 = '' OR branch_id = $1::uuid) ORDER BY name
+	`, branchID)
 	if err != nil {
 		return nil, err
 	}
@@ -107,25 +110,37 @@ func (r *ScheduleRepo) ListRooms(ctx context.Context, branchID string) ([]Room, 
 // --- Groups ---
 
 type Group struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	TeacherID string `json:"teacher_id"`
-	Program   string `json:"program"`
-	Level     string `json:"level"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	TeacherID  string `json:"teacher_id"`
+	CourseType string `json:"course_type"` // "language" | "care_and_prep"
+	Subject    string `json:"subject,omitempty"`
+	Level      string `json:"level,omitempty"` // CEFR/HSK, empty for care_and_prep
 }
 
-func (r *ScheduleRepo) CreateGroup(ctx context.Context, branchID, teacherID, name, program, level string) (string, error) {
+// CreateGroup inserts a group. level may be "" (required for
+// course_type=language, meaningless for care_and_prep).
+func (r *ScheduleRepo) CreateGroup(ctx context.Context, branchID, teacherID, name, courseType, subject, level string) (string, error) {
+	var lvl any
+	if level != "" {
+		lvl = level
+	}
 	var id string
 	err := r.store.Pool.QueryRow(ctx, `
-		INSERT INTO groups (branch_id, teacher_id, name, program, level)
-		VALUES ($1, $2, $3, $4, $5) RETURNING id
-	`, branchID, teacherID, name, program, level).Scan(&id)
+		INSERT INTO groups (branch_id, teacher_id, name, course_type, subject, level)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+	`, branchID, teacherID, name, courseType, subject, lvl).Scan(&id)
 	return id, err
 }
 
+// ListGroups lists a branch's groups, or every branch's if branchID is
+// "" (super_admin / network-owner director — see middleware.EffectiveBranchID).
 func (r *ScheduleRepo) ListGroups(ctx context.Context, branchID string) ([]Group, error) {
 	rows, err := r.store.Pool.Query(ctx, `
-		SELECT id, name, teacher_id, program, level FROM groups WHERE branch_id = $1 ORDER BY name
+		SELECT id, name, teacher_id, course_type, COALESCE(subject::text, ''), COALESCE(level::text, '')
+		FROM groups
+		WHERE ($1 = '' OR branch_id = $1::uuid)
+		ORDER BY name
 	`, branchID)
 	if err != nil {
 		return nil, err
@@ -135,12 +150,26 @@ func (r *ScheduleRepo) ListGroups(ctx context.Context, branchID string) ([]Group
 	var out []Group
 	for rows.Next() {
 		var g Group
-		if err := rows.Scan(&g.ID, &g.Name, &g.TeacherID, &g.Program, &g.Level); err != nil {
+		if err := rows.Scan(&g.ID, &g.Name, &g.TeacherID, &g.CourseType, &g.Subject, &g.Level); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
 	}
 	return out, rows.Err()
+}
+
+// GetGroup fetches one group — used by test-assignment creation to
+// derive subject/level from the target group.
+func (r *ScheduleRepo) GetGroup(ctx context.Context, groupID string) (*Group, error) {
+	var g Group
+	err := r.store.Pool.QueryRow(ctx, `
+		SELECT id, name, teacher_id, course_type, COALESCE(subject::text, ''), COALESCE(level::text, '')
+		FROM groups WHERE id = $1
+	`, groupID).Scan(&g.ID, &g.Name, &g.TeacherID, &g.CourseType, &g.Subject, &g.Level)
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
 }
 
 // Daily Schedule view.
@@ -168,37 +197,40 @@ func (r *ScheduleRepo) ListByTeacher(ctx context.Context, teacherID string) ([]S
 }
 
 // Teacher is a lightweight staff record for the director's Staff
-// Management view.
+// Management view. Subject doubles as both display label and access
+// scope: "english"/"chinese" get test-bank access, "mad"/"prodlenka"
+// get daily-log access only, "" means not yet assigned.
 type Teacher struct {
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	FullName      string `json:"full_name"`
-	Subject       string `json:"subject"`
-	LanguageScope string `json:"language_scope,omitempty"` // "en" | "zh" | "" (mad/prodlenka)
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
+	Subject  string `json:"subject,omitempty"`
 }
 
 // CreateTeacher inserts a new teacher account. passwordHash is
-// generated and hashed by the caller (handler). languageScope is ""
-// for a mad/prodlenka teacher (no test-upload access at all).
-func (r *ScheduleRepo) CreateTeacher(ctx context.Context, branchID, email, passwordHash, fullName, subject, languageScope string) (string, error) {
-	var scope *string
-	if languageScope != "" {
-		scope = &languageScope
+// generated and hashed by the caller (handler). subject is "" if not
+// yet assigned.
+func (r *ScheduleRepo) CreateTeacher(ctx context.Context, branchID, email, passwordHash, fullName, subject string) (string, error) {
+	var subj any
+	if subject != "" {
+		subj = subject
 	}
 	var id string
 	err := r.store.Pool.QueryRow(ctx, `
-		INSERT INTO teachers (branch_id, email, password_hash, full_name, subject, language_scope)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO teachers (branch_id, email, password_hash, full_name, subject)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id
-	`, branchID, email, passwordHash, fullName, subject, scope).Scan(&id)
+	`, branchID, email, passwordHash, fullName, subj).Scan(&id)
 	return id, err
 }
 
-// ListTeachers returns every active teacher in a branch.
+// ListTeachers returns every active teacher in a branch, or every
+// branch's if branchID is "" (super_admin / network-owner director).
 func (r *ScheduleRepo) ListTeachers(ctx context.Context, branchID string) ([]Teacher, error) {
 	rows, err := r.store.Pool.Query(ctx, `
-		SELECT id, email, full_name, COALESCE(subject, ''), COALESCE(language_scope, '')
-		FROM teachers WHERE branch_id = $1 AND is_active
+		SELECT id, email, full_name, COALESCE(subject::text, '')
+		FROM teachers
+		WHERE ($1 = '' OR branch_id = $1::uuid) AND is_active
 		ORDER BY full_name
 	`, branchID)
 	if err != nil {
@@ -209,7 +241,7 @@ func (r *ScheduleRepo) ListTeachers(ctx context.Context, branchID string) ([]Tea
 	var out []Teacher
 	for rows.Next() {
 		var t Teacher
-		if err := rows.Scan(&t.ID, &t.Email, &t.FullName, &t.Subject, &t.LanguageScope); err != nil {
+		if err := rows.Scan(&t.ID, &t.Email, &t.FullName, &t.Subject); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

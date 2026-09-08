@@ -15,6 +15,8 @@ import (
 
 	"github.com/dosedu/lms/internal/ai"
 	"github.com/dosedu/lms/internal/auth"
+	"github.com/dosedu/lms/internal/middleware"
+	"github.com/dosedu/lms/internal/ratelimit"
 	"github.com/dosedu/lms/internal/repository"
 	"github.com/dosedu/lms/internal/telegram"
 )
@@ -38,19 +40,39 @@ type Deps struct {
 	Branches              *repository.BranchRepo
 	AdminDirectors        *repository.AdminDirectorRepo
 	SystemLogs            *repository.SystemLogRepo
-	Practice              *repository.PracticeRepo
-	Quiz                  *repository.QuizRepo
 	Questions             *repository.QuestionRepo
+	TestAssignments       *repository.TestAssignmentRepo
+	DailyLogs             *repository.DailyLogRepo
+	Impersonation         *repository.ImpersonationRepo
 	TestUploads           *repository.TestUploadRepo
 	Payments              *repository.PaymentRepo
 	AI                    *ai.Client
 	Redis                 *redis.Client
+	RateLimit             *ratelimit.Limiter
 	MainSiteURL           string // e.g. https://dosedu.kz — self-checked by SystemHealth
 	AppSiteURL            string // e.g. https://app.dosedu.kz — self-checked by SystemHealth
+	TeacherSiteURL        string
+	DirectorSiteURL       string
+	AdminSiteURL          string
 }
 
 func parseDate(s string) (time.Time, error) {
 	return time.Parse("2006-01-02", s)
+}
+
+// resolveBranchID picks which branch a WRITE targets. A regular
+// (single-branch) director always writes into their own branch; a
+// network-owner director (or super_admin, though they don't normally
+// hit these routes) must say explicitly which branch via `requested`
+// — a new branch is not implied.
+func resolveBranchID(claims *auth.Claims, requested string) (string, error) {
+	if claims.Role == auth.RoleSuperAdmin || claims.IsNetworkOwner {
+		if requested == "" {
+			return "", errors.New("branch_id is required for a network-wide account")
+		}
+		return requested, nil
+	}
+	return claims.BranchID, nil
 }
 
 type LoginRequest struct {
@@ -90,11 +112,11 @@ func (d *Deps) Login(c *gin.Context) {
 		return
 	}
 
-	languageScope := ""
-	if cred.LanguageScope != nil {
-		languageScope = *cred.LanguageScope
+	subject := ""
+	if cred.Subject != nil {
+		subject = *cred.Subject
 	}
-	token, err := d.Sessions.IssueSession(c.Request.Context(), cred.UserID, req.Role, cred.BranchID, languageScope)
+	token, err := d.Sessions.IssueSession(c.Request.Context(), cred.UserID, req.Role, cred.BranchID, subject, cred.IsNetworkOwner)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create session"})
 		return
@@ -146,14 +168,17 @@ func (d *Deps) SystemHealth(c *gin.Context) {
 	poolStats := d.Creds.PoolStats()
 
 	c.JSON(http.StatusOK, gin.H{
-		"postgres":     pgStatus,
-		"redis":        redisStatus,
-		"cpu_percent":  round1(cpuPercent),
-		"ram_percent":  round1(ramPercent),
-		"disk_percent": round1(diskPercent),
-		"db_pool":      poolStats,
-		"main_site":    d.checkSiteStatus(ctx, d.MainSiteURL),
-		"app_site":     d.checkSiteStatus(ctx, d.AppSiteURL),
+		"postgres":      pgStatus,
+		"redis":         redisStatus,
+		"cpu_percent":   round1(cpuPercent),
+		"ram_percent":   round1(ramPercent),
+		"disk_percent":  round1(diskPercent),
+		"db_pool":       poolStats,
+		"main_site":     d.checkSiteStatus(ctx, d.MainSiteURL),
+		"student_site":  d.checkSiteStatus(ctx, d.AppSiteURL),
+		"teacher_site":  d.checkSiteStatus(ctx, d.TeacherSiteURL),
+		"director_site": d.checkSiteStatus(ctx, d.DirectorSiteURL),
+		"admin_site":    d.checkSiteStatus(ctx, d.AdminSiteURL),
 	})
 
 	if pgStatus == "down" || redisStatus == "down" {
@@ -323,11 +348,15 @@ func (d *Deps) ListSystemLogs(c *gin.Context) {
 type CreateTeacherRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	FullName string `json:"full_name" binding:"required"`
-	Subject  string `json:"subject"`
-	// LanguageScope restricts this teacher to one language's tests/
-	// content ("en"/"zh"). Leave empty for a mad/prodlenka teacher, who
-	// gets attendance-only access with no test-upload tab at all.
-	LanguageScope string `json:"language_scope" binding:"omitempty,oneof=en zh"`
+	// Subject determines this teacher's access: "english"/"chinese" get
+	// the question-bank/test-upload tabs; "mad"/"prodlenka" get
+	// daily-log (attendance/note/homework) access only, no tests at
+	// all. Leave empty if not yet assigned.
+	Subject string `json:"subject" binding:"omitempty,oneof=english chinese mad prodlenka"`
+	// BranchID is required only for a network-owner director (which
+	// branch this teacher belongs to); ignored for a single-branch
+	// director, who can only ever create within their own branch.
+	BranchID string `json:"branch_id"`
 }
 
 // CreateTeacher godoc
@@ -349,6 +378,12 @@ func (d *Deps) CreateTeacher(c *gin.Context) {
 		return
 	}
 
+	branchID, err := resolveBranchID(claims, req.BranchID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	tempPassword, err := auth.GenerateTeacherPassword(8)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate password"})
@@ -360,7 +395,7 @@ func (d *Deps) CreateTeacher(c *gin.Context) {
 		return
 	}
 
-	id, err := d.Schedule.CreateTeacher(c.Request.Context(), claims.BranchID, req.Email, hash, req.FullName, req.Subject, req.LanguageScope)
+	id, err := d.Schedule.CreateTeacher(c.Request.Context(), branchID, req.Email, hash, req.FullName, req.Subject)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create teacher"})
 		return
@@ -382,8 +417,7 @@ func (d *Deps) CreateTeacher(c *gin.Context) {
 // @Success		200	{object}	map[string]any
 // @Router			/director/teachers [get]
 func (d *Deps) ListTeachers(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	teachers, err := d.Schedule.ListTeachers(c.Request.Context(), claims.BranchID)
+	teachers, err := d.Schedule.ListTeachers(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load teachers"})
 		return
@@ -392,8 +426,7 @@ func (d *Deps) ListTeachers(c *gin.Context) {
 }
 
 func (d *Deps) GetScheduleGrid(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	slots, err := d.Schedule.ListByBranch(c.Request.Context(), claims.BranchID)
+	slots, err := d.Schedule.ListByBranch(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load schedule"})
 		return
@@ -454,8 +487,7 @@ func (d *Deps) CreateScheduleSlot(c *gin.Context) {
 }
 
 func (d *Deps) ListRooms(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	rooms, err := d.Schedule.ListRooms(c.Request.Context(), claims.BranchID)
+	rooms, err := d.Schedule.ListRooms(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load rooms"})
 		return
@@ -464,7 +496,8 @@ func (d *Deps) ListRooms(c *gin.Context) {
 }
 
 type CreateRoomRequest struct {
-	Name string `json:"name" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	BranchID string `json:"branch_id"` // required only for a network-owner director
 }
 
 func (d *Deps) CreateRoom(c *gin.Context) {
@@ -474,7 +507,12 @@ func (d *Deps) CreateRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	id, err := d.Schedule.CreateRoom(c.Request.Context(), claims.BranchID, req.Name)
+	branchID, err := resolveBranchID(claims, req.BranchID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	id, err := d.Schedule.CreateRoom(c.Request.Context(), branchID, req.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create room"})
 		return
@@ -483,8 +521,7 @@ func (d *Deps) CreateRoom(c *gin.Context) {
 }
 
 func (d *Deps) ListGroups(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	groups, err := d.Schedule.ListGroups(c.Request.Context(), claims.BranchID)
+	groups, err := d.Schedule.ListGroups(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load groups"})
 		return
@@ -493,10 +530,12 @@ func (d *Deps) ListGroups(c *gin.Context) {
 }
 
 type CreateGroupRequest struct {
-	Name      string `json:"name" binding:"required"`
-	TeacherID string `json:"teacher_id" binding:"required"`
-	Program   string `json:"program" binding:"required,oneof=language_course prodlenka"`
-	Level     string `json:"level"`
+	Name       string `json:"name" binding:"required"`
+	TeacherID  string `json:"teacher_id" binding:"required"`
+	CourseType string `json:"course_type" binding:"required,oneof=language care_and_prep"`
+	Subject    string `json:"subject" binding:"required,oneof=english chinese mad prodlenka"`
+	Level      string `json:"level" binding:"omitempty,oneof=A1 A2 B1 B2 C1 C2 HSK1 HSK2 HSK3 HSK4 HSK5 HSK6"`
+	BranchID   string `json:"branch_id"` // required only for a network-owner director
 }
 
 func (d *Deps) CreateGroup(c *gin.Context) {
@@ -506,7 +545,12 @@ func (d *Deps) CreateGroup(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	id, err := d.Schedule.CreateGroup(c.Request.Context(), claims.BranchID, req.TeacherID, req.Name, req.Program, req.Level)
+	branchID, err := resolveBranchID(claims, req.BranchID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	id, err := d.Schedule.CreateGroup(c.Request.Context(), branchID, req.TeacherID, req.Name, req.CourseType, req.Subject, req.Level)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create group"})
 		return
@@ -515,8 +559,7 @@ func (d *Deps) CreateGroup(c *gin.Context) {
 }
 
 func (d *Deps) GetMonthlyReports(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	overdue, err := d.Students.ListOverdue(c.Request.Context(), claims.BranchID)
+	overdue, err := d.Students.ListOverdue(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load reports"})
 		return
@@ -532,8 +575,7 @@ func (d *Deps) GetMonthlyReports(c *gin.Context) {
 // @Success		200	{object}	map[string]any
 // @Router			/director/students [get]
 func (d *Deps) ListBranchStudents(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	students, err := d.Students.ListByBranch(c.Request.Context(), claims.BranchID)
+	students, err := d.Students.ListByBranch(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load students"})
 		return
@@ -549,8 +591,7 @@ func (d *Deps) ListBranchStudents(c *gin.Context) {
 // @Success		200	{object}	map[string]any
 // @Router			/director/payments [get]
 func (d *Deps) ListBranchPayments(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	payments, err := d.Payments.ListByBranch(c.Request.Context(), claims.BranchID)
+	payments, err := d.Payments.ListByBranch(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load payments"})
 		return
@@ -720,66 +761,6 @@ func (d *Deps) resolveStudentID(ctx context.Context, claims *auth.Claims) (strin
 	return ids[0], nil
 }
 
-type RecordPracticeAttemptRequest struct {
-	Language string `json:"language" binding:"required,oneof=en zh"`
-	Score    int    `json:"score" binding:"min=0"`
-	Total    int    `json:"total" binding:"required,min=1"`
-}
-
-// RecordPracticeAttempt godoc
-// @Summary		Record a completed practice-test attempt
-// @Description	Student-only. Saves one finished quiz run to their "Нәтижелер" history.
-// @Tags			family,practice
-// @Accept			json
-// @Produce		json
-// @Security		BearerAuth
-// @Param			request	body		RecordPracticeAttemptRequest	true	"Attempt result"
-// @Success		201		{object}	map[string]string
-// @Router			/family/practice/attempts [post]
-func (d *Deps) RecordPracticeAttempt(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students record practice attempts"})
-		return
-	}
-
-	var req RecordPracticeAttemptRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	id, err := d.Practice.RecordAttempt(c.Request.Context(), claims.UserID, req.Language, req.Score, req.Total)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save attempt"})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"id": id})
-}
-
-// ListPracticeAttempts godoc
-// @Summary		List a student's practice-test history
-// @Tags			family,practice
-// @Produce		json
-// @Security		BearerAuth
-// @Success		200	{object}	map[string]any
-// @Router			/family/practice/attempts [get]
-func (d *Deps) ListPracticeAttempts(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	studentID, err := d.resolveStudentID(c.Request.Context(), claims)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-
-	attempts, err := d.Practice.ListByStudent(c.Request.Context(), studentID, 50)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load attempts"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"attempts": attempts})
-}
-
 func (d *Deps) GetStudentProgress(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
 	studentID, err := d.resolveStudentID(c.Request.Context(), claims)
@@ -808,230 +789,4 @@ func (d *Deps) GetBalance(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"balance": summary.Balance, "payment_status": summary.PaymentStatus})
-}
-
-// --- Family: language track, question bank, quiz submit, AI hint ---
-
-type SetLanguageRequest struct {
-	Language string `json:"language" binding:"required,oneof=en zh"`
-}
-
-// SetStudentLanguage lets a student self-declare their language track
-// once (locked after that). A bridge until Phase 4 gives directors a
-// real enrollment-time assignment UI.
-func (d *Deps) SetStudentLanguage(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only a student can set their own language track"})
-		return
-	}
-
-	var req SetLanguageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := d.Students.SetLanguageIfUnset(c.Request.Context(), claims.UserID, req.Language); err != nil {
-		if errors.Is(err, repository.ErrLanguageAlreadySet) {
-			c.JSON(http.StatusConflict, gin.H{"error": "already_set", "message": "Тіл бағыты бұрын таңдалған."})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set language"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"language": req.Language})
-}
-
-// ListQuestions godoc
-// @Summary		Get a practice or official question set
-// @Description	Student-only. kind=official is rejected with 409 if the student already has an official attempt for this language (one-time only).
-// @Tags			family,quiz
-// @Produce		json
-// @Security		BearerAuth
-// @Param			language	query		string	true	"en or zh"
-// @Param			level		query		string	true	"e.g. Beginner, HSK1"
-// @Param			kind		query		string	true	"practice or official"
-// @Success		200			{object}	map[string]any
-// @Router			/family/questions [get]
-func (d *Deps) ListQuestions(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take tests"})
-		return
-	}
-
-	language := c.Query("language")
-	level := c.Query("level")
-	kind := c.Query("kind")
-	if (language != "en" && language != "zh") || level == "" || (kind != "practice" && kind != "official") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "language must be en/zh, level required, kind must be practice/official"})
-		return
-	}
-
-	if kind == "official" {
-		has, err := d.Quiz.HasOfficialAttempt(c.Request.Context(), claims.UserID, language)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check prior attempts"})
-			return
-		}
-		if has {
-			c.JSON(http.StatusConflict, gin.H{"error": "already_taken", "message": "Сіз бұл деңгей тестін бұрын тапсырғансыз — ол бір рет қана тапсырылады."})
-			return
-		}
-	}
-
-	questions, err := d.Questions.ListForStudent(c.Request.Context(), language, level, kind == "official")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load questions"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"questions": questions})
-}
-
-type SubmitQuizAnswer struct {
-	QuestionID string `json:"question_id" binding:"required"`
-	Selected   int    `json:"selected"`
-}
-
-type SubmitQuizRequest struct {
-	Language string             `json:"language" binding:"required,oneof=en zh"`
-	Kind     string             `json:"kind" binding:"required,oneof=practice official"`
-	Answers  []SubmitQuizAnswer `json:"answers" binding:"required,min=1"`
-}
-
-type QuizResultItem struct {
-	QuestionID string   `json:"question_id"`
-	Question   string   `json:"question"`
-	Options    []string `json:"options"`
-	Selected   int      `json:"selected"`
-	Correct    int      `json:"correct"`
-	IsCorrect  bool     `json:"is_correct"`
-}
-
-// SubmitQuiz godoc
-// @Summary		Grade and record a finished practice/official attempt
-// @Description	Student-only. official is rejected with 409 if already taken once. Returns a per-question breakdown so the UI can offer an AI explanation on each miss.
-// @Tags			family,quiz
-// @Accept			json
-// @Produce		json
-// @Security		BearerAuth
-// @Param			request	body		SubmitQuizRequest	true	"Answers"
-// @Success		201		{object}	map[string]any
-// @Router			/family/quiz/submit [post]
-func (d *Deps) SubmitQuiz(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take tests"})
-		return
-	}
-
-	var req SubmitQuizRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if req.Kind == "official" {
-		has, err := d.Quiz.HasOfficialAttempt(c.Request.Context(), claims.UserID, req.Language)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check prior attempts"})
-			return
-		}
-		if has {
-			c.JSON(http.StatusConflict, gin.H{"error": "already_taken", "message": "Сіз бұл деңгей тестін бұрын тапсырғансыз — ол бір рет қана тапсырылады."})
-			return
-		}
-	}
-
-	ids := make([]string, len(req.Answers))
-	selectedByID := make(map[string]int, len(req.Answers))
-	for i, a := range req.Answers {
-		ids[i] = a.QuestionID
-		selectedByID[a.QuestionID] = a.Selected
-	}
-
-	questions, err := d.Questions.GetByIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load questions"})
-		return
-	}
-
-	score := 0
-	results := make([]QuizResultItem, 0, len(questions))
-	for _, q := range questions {
-		selected := selectedByID[q.ID]
-		isCorrect := selected == q.CorrectOption
-		if isCorrect {
-			score++
-		}
-		options := []string{q.OptionA, q.OptionB}
-		if q.OptionC != "" {
-			options = append(options, q.OptionC)
-		}
-		if q.OptionD != "" {
-			options = append(options, q.OptionD)
-		}
-		results = append(results, QuizResultItem{
-			QuestionID: q.ID,
-			Question:   q.Question,
-			Options:    options,
-			Selected:   selected,
-			Correct:    q.CorrectOption,
-			IsCorrect:  isCorrect,
-		})
-	}
-	total := len(questions)
-
-	var attemptID string
-	if req.Kind == "official" {
-		attemptID, err = d.Quiz.RecordAttempt(c.Request.Context(), claims.UserID, req.Language, "official", score, total)
-	} else {
-		attemptID, err = d.Practice.RecordAttempt(c.Request.Context(), claims.UserID, req.Language, score, total)
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save attempt"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"id": attemptID, "score": score, "total": total, "results": results})
-}
-
-type ExplainMistakeRequest struct {
-	Question        string `json:"question" binding:"required"`
-	ChosenAnswer    string `json:"chosen_answer" binding:"required"`
-	CorrectAnswer   string `json:"correct_answer" binding:"required"`
-	Language        string `json:"language" binding:"required,oneof=en zh"`         // language being learned
-	ExplainLanguage string `json:"explain_language" binding:"required,oneof=kk ru en zh"` // language the student wants the explanation in
-}
-
-// ExplainQuizMistake godoc
-// @Summary		AI explanation for one missed quiz question
-// @Description	Student-only. Explains in explain_language (the student's choice), independent of the language being learned.
-// @Tags			family,quiz,ai
-// @Accept			json
-// @Produce		json
-// @Security		BearerAuth
-// @Param			request	body		ExplainMistakeRequest	true	"Missed question detail"
-// @Success		200		{object}	map[string]string
-// @Router			/family/quiz/explain [post]
-func (d *Deps) ExplainQuizMistake(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students request quiz explanations"})
-		return
-	}
-
-	var req ExplainMistakeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	explanation, err := d.AI.ExplainMistake(c.Request.Context(), req.Question, req.ChosenAnswer, req.CorrectAnswer, req.Language, req.ExplainLanguage)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get AI explanation"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"explanation": explanation})
 }
