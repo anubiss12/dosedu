@@ -11,7 +11,7 @@ const identifier = ref("");
 const password = ref("");
 const loginError = ref(false);
 
-type Tab = "schedule" | "gradebook" | "payment" | "tests" | "certificate";
+type Tab = "schedule" | "gradebook" | "payment" | "tests" | "certificate" | "questionBank" | "assignTest" | "dailyLog";
 const activeTab = ref<Tab>("schedule");
 
 function authHeaders() {
@@ -19,8 +19,8 @@ function authHeaders() {
 }
 
 // --- JWT claims (client-side decode, display-only — the server is the
-// real authority on language_scope enforcement) ---
-type Claims = { uid: string; role: string; branch_id?: string; language_scope?: string };
+// real authority on subject enforcement) ---
+type Claims = { uid: string; role: string; branch_id?: string; subject?: string };
 function decodeToken(t: string | null): Claims | null {
   if (!t) return null;
   try {
@@ -31,19 +31,23 @@ function decodeToken(t: string | null): Claims | null {
   }
 }
 const claims = computed(() => decodeToken(token.value));
-const languageScope = computed(() => claims.value?.language_scope ?? "");
+const subject = computed(() => claims.value?.subject ?? "");
+const isLanguageTeacher = computed(() => subject.value === "english" || subject.value === "chinese");
+const isCareTeacher = computed(() => subject.value === "prodlenka" || subject.value === "mad");
 
-// A mad/prodlenka teacher (no language_scope) has attendance-only
-// access — no test-upload or certificate tabs at all.
-const visibleTabs = computed<Tab[]>(() =>
-  languageScope.value
-    ? ["schedule", "gradebook", "payment", "tests", "certificate"]
-    : ["schedule", "gradebook", "payment"],
-);
+// A language (english/chinese) teacher gets tests/certificate/question
+// bank/test-assignment tabs. A mad/prodlenka teacher gets a Daily Log
+// tab instead. A teacher with no subject assigned yet sees neither
+// (attendance-only access).
+const visibleTabs = computed<Tab[]>(() => {
+  if (isLanguageTeacher.value) return ["schedule", "gradebook", "payment", "tests", "questionBank", "assignTest", "certificate"];
+  if (isCareTeacher.value) return ["schedule", "gradebook", "payment", "dailyLog"];
+  return ["schedule", "gradebook", "payment"];
+});
 
-const englishLevels = ["Beginner", "Elementary", "Intermediate", "Upper-Intermediate", "Advanced"];
+const englishLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const chineseLevels = ["HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"];
-const availableLevels = computed(() => (languageScope.value === "zh" ? chineseLevels : englishLevels));
+const availableLevels = computed(() => (subject.value === "chinese" ? chineseLevels : englishLevels));
 const weekdayNames = ["", "Дс", "Сс", "Ср", "Бс", "Жм", "Сб", "Жс"];
 
 // --- Schedule ---
@@ -120,6 +124,8 @@ type UploadError = { row: number; message: string };
 const errorLog = ref<UploadError[]>([]);
 const uploadStatus = ref<"idle" | "ok" | "failed">("idle");
 const questionsAdded = ref(0);
+const uploadedSubject = ref("");
+const uploadedPool = ref("");
 
 type UploadHistoryItem = {
   id: string;
@@ -160,6 +166,8 @@ async function uploadTest() {
     uploadStatus.value = data.status === "ok" ? "ok" : "failed";
     errorLog.value = data.error_log ?? [];
     questionsAdded.value = data.questions_added ?? 0;
+    uploadedSubject.value = data.subject ?? "";
+    uploadedPool.value = data.pool ?? "";
     await loadUploadHistory();
   } catch {
     uploadStatus.value = "failed";
@@ -193,10 +201,149 @@ async function issueCertificate() {
   }
 }
 
+// --- Question bank browser (english/chinese teachers) ---
+type BankQuestion = {
+  id: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c?: string;
+  option_d?: string;
+  correct_option: number;
+};
+const bankLevel = ref(availableLevels.value[0]);
+const bankPool = ref<"practice" | "official">("practice");
+const bankQuestions = ref<BankQuestion[]>([]);
+const bankLoading = ref(false);
+const bankLoaded = ref(false);
+const optionLetters = ["A", "B", "C", "D"];
+
+async function loadQuestionBank() {
+  if (!token.value) return;
+  bankLoading.value = true;
+  bankLoaded.value = false;
+  try {
+    const params = new URLSearchParams({ level: bankLevel.value, pool: bankPool.value });
+    const res = await fetch(`/api/questions?${params.toString()}`, { headers: authHeaders() });
+    bankQuestions.value = res.ok ? ((await res.json()).questions ?? []) : [];
+  } finally {
+    bankLoading.value = false;
+    bankLoaded.value = true;
+  }
+}
+
+function questionOptions(q: BankQuestion) {
+  return [q.option_a, q.option_b, q.option_c, q.option_d].filter((o): o is string => !!o);
+}
+
+// --- Official test assignment (english/chinese teachers) ---
+const assignGroupId = ref("");
+const assignLevel = ref(availableLevels.value[0]);
+const assignQuestions = ref<BankQuestion[]>([]);
+const assignLoading = ref(false);
+const selectedQuestionIds = ref<Set<string>>(new Set());
+const assignStatus = ref<"idle" | "success" | "error">("idle");
+const assignError = ref("");
+const assigning = ref(false);
+
+async function loadAssignQuestions() {
+  if (!token.value) return;
+  assignLoading.value = true;
+  selectedQuestionIds.value = new Set();
+  try {
+    const params = new URLSearchParams({ level: assignLevel.value, pool: "official" });
+    const res = await fetch(`/api/questions?${params.toString()}`, { headers: authHeaders() });
+    assignQuestions.value = res.ok ? ((await res.json()).questions ?? []) : [];
+  } finally {
+    assignLoading.value = false;
+  }
+}
+
+function toggleQuestionSelected(id: string) {
+  const next = new Set(selectedQuestionIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedQuestionIds.value = next;
+}
+
+async function submitTestAssignment() {
+  if (!token.value || !assignGroupId.value || !selectedQuestionIds.value.size) return;
+  assigning.value = true;
+  assignStatus.value = "idle";
+  assignError.value = "";
+  try {
+    const res = await fetch(`/api/groups/${assignGroupId.value}/test-assignments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ question_ids: [...selectedQuestionIds.value] }),
+    });
+    if (res.ok) {
+      assignStatus.value = "success";
+      selectedQuestionIds.value = new Set();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      assignError.value = data.error === "this group is not your subject" ? t("assignTest.wrongSubject") : data.error ?? "";
+      assignStatus.value = "error";
+    }
+  } catch {
+    assignStatus.value = "error";
+  } finally {
+    assigning.value = false;
+  }
+}
+
+// --- Daily log (mad/prodlenka teachers) ---
+type RosterRow = { student_id: string; full_name: string };
+const dailyLogGroupId = ref("");
+const dailyLogRoster = ref<RosterRow[]>([]);
+const dailyLogLoading = ref(false);
+const dailyLogDate = ref(new Date().toISOString().slice(0, 10));
+const dailyLogDrafts = ref<Record<string, { attendance_status: string; teacher_note: string; homework_status: string }>>({});
+const dailyLogSavedFor = ref<Record<string, boolean>>({});
+
+async function loadDailyLogRoster() {
+  if (!token.value || !dailyLogGroupId.value) return;
+  dailyLogLoading.value = true;
+  dailyLogSavedFor.value = {};
+  try {
+    const res = await fetch(`/api/groups/${dailyLogGroupId.value}/gradebook?date=${dailyLogDate.value}`, { headers: authHeaders() });
+    const rows: { student_id: string; full_name: string }[] = res.ok ? ((await res.json()).students ?? []) : [];
+    dailyLogRoster.value = rows.map((r) => ({ student_id: r.student_id, full_name: r.full_name }));
+    const drafts: typeof dailyLogDrafts.value = {};
+    for (const r of rows) {
+      drafts[r.student_id] = dailyLogDrafts.value[r.student_id] ?? { attendance_status: "present", teacher_note: "", homework_status: "n_a" };
+    }
+    dailyLogDrafts.value = drafts;
+  } finally {
+    dailyLogLoading.value = false;
+  }
+}
+
+async function saveDailyLog(studentId: string) {
+  if (!token.value) return;
+  const draft = dailyLogDrafts.value[studentId];
+  if (!draft) return;
+  const res = await fetch("/api/daily-logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      student_id: studentId,
+      date: dailyLogDate.value,
+      attendance_status: draft.attendance_status,
+      teacher_note: draft.teacher_note,
+      homework_status: draft.homework_status,
+    }),
+  });
+  dailyLogSavedFor.value = { ...dailyLogSavedFor.value, [studentId]: res.ok };
+}
+
 async function selectTab(tab: Tab) {
   activeTab.value = tab;
   if (tab === "schedule" || tab === "gradebook") await loadSchedule();
   if (tab === "tests") await loadUploadHistory();
+  if (tab === "questionBank") await loadQuestionBank();
+  if (tab === "assignTest") await loadSchedule();
+  if (tab === "dailyLog") await loadSchedule();
 }
 
 async function login() {
@@ -213,6 +360,8 @@ async function login() {
     localStorage.setItem("dosedu_token", data.token);
     level.value = availableLevels.value[0];
     certLevel.value = availableLevels.value[0];
+    bankLevel.value = availableLevels.value[0];
+    assignLevel.value = availableLevels.value[0];
     activeTab.value = "schedule"; // reset in case the previous session left it on a tab this account can't see
     await loadSchedule();
   } catch {
@@ -329,7 +478,7 @@ onMounted(loadSchedule);
         <div class="flex items-center justify-between">
           <h2 class="font-display text-sm font-semibold text-ink">{{ t("testUpload.title") }}</h2>
           <span class="font-accent rounded-full bg-badge1 px-2.5 py-0.5 text-xs font-semibold text-badge1-fg">
-            {{ languageScope === "zh" ? "中文" : "EN" }}
+            {{ subject === "chinese" ? "中文" : "EN" }}
           </span>
         </div>
         <label class="block text-sm text-ink-muted">
@@ -362,6 +511,10 @@ onMounted(loadSchedule);
         </div>
         <p v-else-if="uploadStatus === 'ok'" class="text-sm text-success">
           ✅ {{ t("testUpload.success") }} ({{ t("testUpload.questionsAdded") }}: {{ questionsAdded }})
+          <span v-if="uploadedSubject" class="text-ink-muted">
+            · {{ uploadedSubject === "chinese" ? t("testUpload.groupChinese") : t("testUpload.groupEnglish") }}
+            · {{ uploadedPool === "official" ? t("testUpload.official") : t("questionBank.poolPractice") }}
+          </span>
         </p>
 
         <div v-if="uploadHistory.length" class="border-t border-line pt-3">
@@ -402,6 +555,121 @@ onMounted(loadSchedule);
         </button>
         <p v-if="certStatus === 'success'" class="text-sm text-success">{{ t("certificate.success") }}</p>
         <p v-if="certStatus === 'error'" class="text-sm text-danger">{{ t("certificate.error") }}</p>
+      </section>
+
+      <section v-if="activeTab === 'questionBank'" class="mt-4 space-y-4 rounded-xl border border-line bg-surface2 p-5 shadow-sm">
+        <h2 class="font-display text-sm font-semibold text-ink">{{ t("questionBank.title") }}</h2>
+        <div class="flex flex-wrap gap-2">
+          <select v-model="bankLevel" class="text-sm">
+            <option v-for="lvl in availableLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
+          </select>
+          <select v-model="bankPool" class="text-sm">
+            <option value="practice">{{ t("questionBank.poolPractice") }}</option>
+            <option value="official">{{ t("questionBank.poolOfficial") }}</option>
+          </select>
+          <button type="button" class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast" @click="loadQuestionBank">
+            {{ t("gradebook.load") }}
+          </button>
+        </div>
+
+        <p v-if="bankLoading" class="text-sm text-ink-muted">…</p>
+        <div v-else class="space-y-2">
+          <div v-for="q in bankQuestions" :key="q.id" class="rounded-lg border border-line bg-surface1 p-3 text-sm">
+            <p class="font-medium text-ink">{{ q.question }}</p>
+            <ul class="mt-1 space-y-0.5 pl-4 text-ink-muted">
+              <li v-for="(opt, i) in questionOptions(q)" :key="i" :class="i === q.correct_option ? 'font-semibold text-success' : ''">
+                {{ optionLetters[i] }}. {{ opt }}
+              </li>
+            </ul>
+          </div>
+          <p v-if="bankLoaded && !bankQuestions.length" class="text-sm text-ink-muted">{{ t("questionBank.empty") }}</p>
+        </div>
+      </section>
+
+      <section v-if="activeTab === 'assignTest'" class="mt-4 space-y-4 rounded-xl border border-line bg-surface2 p-5 shadow-sm">
+        <h2 class="font-display text-sm font-semibold text-ink">{{ t("assignTest.title") }}</h2>
+        <div class="flex flex-wrap gap-2">
+          <select v-model="assignGroupId" class="text-sm">
+            <option value="" disabled>{{ t("gradebook.group") }}</option>
+            <option v-for="gid in myGroupIds" :key="gid" :value="gid">{{ gid.slice(0, 8) }}…</option>
+          </select>
+          <select v-model="assignLevel" class="text-sm">
+            <option v-for="lvl in availableLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
+          </select>
+          <button type="button" class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast" @click="loadAssignQuestions">
+            {{ t("assignTest.loadQuestions") }}
+          </button>
+        </div>
+
+        <p v-if="assignLoading" class="text-sm text-ink-muted">…</p>
+        <div v-else class="space-y-2">
+          <label v-for="q in assignQuestions" :key="q.id" class="flex items-start gap-2 rounded-lg border border-line bg-surface1 p-3 text-sm">
+            <input
+              type="checkbox"
+              class="!w-auto mt-0.5 h-4 w-4 shrink-0"
+              :checked="selectedQuestionIds.has(q.id)"
+              @change="toggleQuestionSelected(q.id)"
+            />
+            <span class="text-ink">{{ q.question }}</span>
+          </label>
+          <p v-if="!assignQuestions.length" class="text-sm text-ink-muted">{{ t("questionBank.empty") }}</p>
+        </div>
+
+        <button
+          type="button"
+          :disabled="!assignGroupId || !selectedQuestionIds.size || assigning"
+          class="font-accent w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:opacity-90 disabled:opacity-60"
+          @click="submitTestAssignment"
+        >
+          {{ t("assignTest.assign") }} ({{ selectedQuestionIds.size }})
+        </button>
+        <p v-if="assignStatus === 'success'" class="text-sm text-success">✅ {{ t("assignTest.success") }}</p>
+        <p v-if="assignStatus === 'error'" class="text-sm text-danger">{{ assignError || t("assignTest.error") }}</p>
+      </section>
+
+      <section v-if="activeTab === 'dailyLog'" class="mt-4 space-y-4">
+        <div class="flex flex-wrap gap-2 rounded-xl border border-line bg-surface2 p-4">
+          <select v-model="dailyLogGroupId" class="text-sm">
+            <option value="" disabled>{{ t("gradebook.group") }}</option>
+            <option v-for="gid in myGroupIds" :key="gid" :value="gid">{{ gid.slice(0, 8) }}…</option>
+          </select>
+          <input v-model="dailyLogDate" type="date" class="text-sm" />
+          <button type="button" class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast" @click="loadDailyLogRoster">
+            {{ t("gradebook.load") }}
+          </button>
+        </div>
+
+        <p v-if="dailyLogLoading" class="text-sm text-ink-muted">…</p>
+        <div v-else class="space-y-3">
+          <div v-for="row in dailyLogRoster" :key="row.student_id" class="space-y-2 rounded-lg border border-line bg-surface1 p-3">
+            <p class="text-sm font-medium text-ink">{{ row.full_name }}</p>
+            <div v-if="dailyLogDrafts[row.student_id]" class="flex flex-wrap items-center gap-2">
+              <select v-model="dailyLogDrafts[row.student_id].attendance_status" class="text-xs">
+                <option value="present">{{ t("gradebook.present") }}</option>
+                <option value="absent">{{ t("gradebook.absent") }}</option>
+                <option value="excused">{{ t("gradebook.excused") }}</option>
+              </select>
+              <select v-model="dailyLogDrafts[row.student_id].homework_status" class="text-xs">
+                <option value="n_a">{{ t("dailyLog.homeworkNA") }}</option>
+                <option value="done">{{ t("dailyLog.homeworkDone") }}</option>
+                <option value="partial">{{ t("dailyLog.homeworkPartial") }}</option>
+                <option value="not_done">{{ t("dailyLog.homeworkNotDone") }}</option>
+              </select>
+              <input
+                v-model="dailyLogDrafts[row.student_id].teacher_note"
+                type="text"
+                class="min-w-[10rem] flex-1 text-xs"
+                :placeholder="t('dailyLog.note')"
+              />
+              <button type="button" class="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast" @click="saveDailyLog(row.student_id)">
+                {{ t("dailyLog.save") }}
+              </button>
+              <span v-if="dailyLogSavedFor[row.student_id] === true" class="text-xs text-success">✅</span>
+              <span v-else-if="dailyLogSavedFor[row.student_id] === false" class="text-xs text-danger">{{ t("dailyLog.error") }}</span>
+            </div>
+          </div>
+          <p v-if="!dailyLogRoster.length" class="text-sm text-ink-muted">—</p>
+        </div>
       </section>
     </div>
   </main>

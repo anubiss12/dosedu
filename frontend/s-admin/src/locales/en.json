@@ -6,6 +6,7 @@
     "health": "System Health",
     "branches": "Branches",
     "directors": "Directors",
+    "impersonation": "Impersonation",
     "logs": "System Logs"
   },
   "login": {
@@ -23,7 +24,10 @@
     "postgres": "PostgreSQL",
     "redis": "Redis",
     "mainSite": "Main site",
-    "appSite": "Student/Parent portal",
+    "studentSite": "Student/Parent portal",
+    "teacherSite": "Teacher portal",
+    "directorSite": "Director portal",
+    "adminSite": "Super Admin portal",
     "dbPool": "DB connections",
     "idle": "idle"
   },
@@ -45,6 +49,29 @@
     "create": "Create",
     "tempPasswordNotice": "An 8-character temporary password is generated automatically.",
     "list": "Director list",
-    "fullName": "Full name"
+    "fullName": "Full name",
+    "networkOwner": "Network owner (manages all branches)",
+    "networkOwnerBadge": "Network owner"
+  },
+  "impersonation": {
+    "title": "Impersonate a user",
+    "role": "Role",
+    "roleDirector": "Director",
+    "roleTeacher": "Teacher",
+    "roleParent": "Parent",
+    "roleStudent": "Student",
+    "targetId": "User ID",
+    "targetIdPlaceholder": "User UUID",
+    "targetIdHint": "Copy the user's ID from the relevant list elsewhere (e.g. the director/teacher/student records).",
+    "submit": "Impersonate",
+    "error": "Could not start the impersonation session",
+    "logTitle": "Impersonation Log",
+    "logHint": "This is your own private audit trail — only you can see it.",
+    "logRole": "Role",
+    "logTargetId": "User ID",
+    "logCreatedAt": "Date/time"
+  },
+  "logs": {
+    "title": "System Logs"
   }
 }

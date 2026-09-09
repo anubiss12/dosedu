@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import LangSwitcher from "./components/LangSwitcher.vue";
 import ThemeToggle from "./components/ThemeToggle.vue";
@@ -18,8 +18,52 @@ function authHeaders() {
   return { Authorization: `Bearer ${token.value}` };
 }
 
+// --- JWT claims (client-side decode, display-only — the server is the
+// real authority on branch scoping) ---
+type Claims = { uid: string; role: string; branch_id?: string; subject?: string; is_network_owner?: boolean };
+function decodeToken(tok: string | null): Claims | null {
+  if (!tok) return null;
+  try {
+    const payload = tok.split(".")[1];
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+const claims = computed(() => decodeToken(token.value));
+const isNetworkOwner = computed(() => claims.value?.is_network_owner === true);
+
+// --- Branch switcher (network-owner directors only) ---
+type Branch = { id: string; name: string; address: string; status: string; created_at: string };
+const branches = ref<Branch[]>([]);
+const selectedBranchId = ref("");
+// A network-owner must pick a concrete branch before creating anything
+// (teacher / room / group) — the backend 400s on branch_id-less writes.
+const branchRequired = computed(() => isNetworkOwner.value && !selectedBranchId.value);
+
+async function loadBranches() {
+  if (!token.value) return;
+  const res = await fetch("/api/branches", { headers: authHeaders() });
+  if (res.ok) branches.value = (await res.json()).branches ?? [];
+}
+
+function withBranch(path: string) {
+  if (isNetworkOwner.value && selectedBranchId.value) {
+    return `${path}${path.includes("?") ? "&" : "?"}branch_id=${encodeURIComponent(selectedBranchId.value)}`;
+  }
+  return path;
+}
+
 // --- Leads Kanban ---
-type Lead = { id: string; full_name: string; phone: string };
+type Lead = {
+  id: string;
+  branch_id: string;
+  full_name: string;
+  phone: string;
+  level_test_result: string;
+  subject?: "english" | "chinese";
+  stage: string;
+};
 const columns = ref<Record<string, Lead[]>>({ new: [], contacted: [], trial_scheduled: [], paid: [], lost: [] });
 const stageOrder = ["new", "contacted", "trial_scheduled", "paid", "lost"] as const;
 type Stage = (typeof stageOrder)[number];
@@ -27,7 +71,7 @@ const newCredentials = ref<{ loginCode: string; password: string; notice: string
 
 async function loadLeads() {
   if (!token.value) return;
-  const res = await fetch("/api/leads", { headers: authHeaders() });
+  const res = await fetch(withBranch("/api/leads"), { headers: authHeaders() });
   if (res.ok) columns.value = (await res.json()).columns;
 }
 
@@ -48,30 +92,29 @@ async function moveStage(leadId: string, stage: Stage) {
 }
 
 // --- Staff (teachers) ---
-type Teacher = { id: string; email: string; full_name: string; subject: string; language_scope?: string };
+type Teacher = { id: string; email: string; full_name: string; subject: string };
 const teachers = ref<Teacher[]>([]);
 const newTeacherEmail = ref("");
 const newTeacherName = ref("");
-const newTeacherSubject = ref("");
-const newTeacherLanguageScope = ref<"" | "en" | "zh">("");
+const newTeacherSubject = ref<"" | "english" | "chinese" | "mad" | "prodlenka">("");
 const newTeacherCredentials = ref<{ email: string; password: string; notice: string } | null>(null);
 
 async function loadTeachers() {
   if (!token.value) return;
-  const res = await fetch("/api/teachers", { headers: authHeaders() });
+  const res = await fetch(withBranch("/api/teachers"), { headers: authHeaders() });
   if (res.ok) teachers.value = (await res.json()).teachers ?? [];
 }
 
 async function createTeacher() {
-  if (!token.value || !newTeacherEmail.value) return;
+  if (!token.value || !newTeacherEmail.value || branchRequired.value) return;
   const res = await fetch("/api/teachers", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       email: newTeacherEmail.value,
       full_name: newTeacherName.value,
-      subject: newTeacherSubject.value,
-      language_scope: newTeacherLanguageScope.value || undefined,
+      subject: newTeacherSubject.value || undefined,
+      ...(isNetworkOwner.value ? { branch_id: selectedBranchId.value } : {}),
     }),
   });
   if (res.ok) {
@@ -80,7 +123,6 @@ async function createTeacher() {
     newTeacherEmail.value = "";
     newTeacherName.value = "";
     newTeacherSubject.value = "";
-    newTeacherLanguageScope.value = "";
     await loadTeachers();
   }
 }
@@ -98,7 +140,7 @@ const students = ref<Student[]>([]);
 
 async function loadStudents() {
   if (!token.value) return;
-  const res = await fetch("/api/students", { headers: authHeaders() });
+  const res = await fetch(withBranch("/api/students"), { headers: authHeaders() });
   if (res.ok) students.value = (await res.json()).students ?? [];
 }
 
@@ -117,13 +159,20 @@ const payments = ref<Payment[]>([]);
 
 async function loadPayments() {
   if (!token.value) return;
-  const res = await fetch("/api/payments", { headers: authHeaders() });
+  const res = await fetch(withBranch("/api/payments"), { headers: authHeaders() });
   if (res.ok) payments.value = (await res.json()).payments ?? [];
 }
 
 // --- Schedule (rooms, groups, slots — Conflict Checker) ---
 type Room = { id: string; name: string };
-type Group = { id: string; name: string; teacher_id: string; program: string; level: string };
+type Group = {
+  id: string;
+  name: string;
+  teacher_id: string;
+  course_type: "language" | "care_and_prep";
+  subject?: string;
+  level?: string;
+};
 type ScheduleSlot = { id: string; group_id: string; teacher_id: string; room_id: string; weekday: number; start_time: string; end_time: string };
 const rooms = ref<Room[]>([]);
 const groups = ref<Group[]>([]);
@@ -131,8 +180,15 @@ const slots = ref<ScheduleSlot[]>([]);
 const newRoomName = ref("");
 const newGroupName = ref("");
 const newGroupTeacherId = ref("");
-const newGroupProgram = ref<"language_course" | "prodlenka">("language_course");
-const newGroupLevel = ref("");
+const newGroupCourseType = ref<"language" | "care_and_prep">("language");
+const languageSubjects = ["english", "chinese"] as const;
+const careSubjects = ["mad", "prodlenka"] as const;
+const newGroupSubject = ref<(typeof languageSubjects)[number] | (typeof careSubjects)[number]>("english");
+const groupSubjectOptions = computed(() => (newGroupCourseType.value === "language" ? languageSubjects : careSubjects));
+const cefrLevels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const hskLevels = ["HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"];
+const groupLevelOptions = computed(() => (newGroupSubject.value === "chinese" ? hskLevels : cefrLevels));
+const newGroupLevel = ref(cefrLevels[0]);
 const slotGroupId = ref("");
 const slotTeacherId = ref("");
 const slotRoomId = ref("");
@@ -142,12 +198,20 @@ const slotEnd = ref("17:30");
 const slotError = ref("");
 const weekdayNames = ["", "Дс", "Сс", "Ср", "Бс", "Жм", "Сб", "Жс"];
 
+function onGroupCourseTypeChange() {
+  newGroupSubject.value = groupSubjectOptions.value[0];
+  newGroupLevel.value = newGroupCourseType.value === "language" ? groupLevelOptions.value[0] : "";
+}
+function onGroupSubjectChange() {
+  if (newGroupCourseType.value === "language") newGroupLevel.value = groupLevelOptions.value[0];
+}
+
 async function loadScheduleData() {
   if (!token.value) return;
   const [r, g, s] = await Promise.all([
-    fetch("/api/rooms", { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
-    fetch("/api/groups", { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
-    fetch("/api/schedule", { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
+    fetch(withBranch("/api/rooms"), { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
+    fetch(withBranch("/api/groups"), { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
+    fetch(withBranch("/api/schedule"), { headers: authHeaders() }).then((r) => (r.ok ? r.json() : null)),
   ]);
   rooms.value = r?.rooms ?? [];
   groups.value = g?.groups ?? [];
@@ -155,11 +219,14 @@ async function loadScheduleData() {
 }
 
 async function createRoom() {
-  if (!token.value || !newRoomName.value) return;
+  if (!token.value || !newRoomName.value || branchRequired.value) return;
   const res = await fetch("/api/rooms", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ name: newRoomName.value }),
+    body: JSON.stringify({
+      name: newRoomName.value,
+      ...(isNetworkOwner.value ? { branch_id: selectedBranchId.value } : {}),
+    }),
   });
   if (res.ok) {
     newRoomName.value = "";
@@ -168,20 +235,24 @@ async function createRoom() {
 }
 
 async function createGroup() {
-  if (!token.value || !newGroupName.value || !newGroupTeacherId.value) return;
+  if (!token.value || !newGroupName.value || !newGroupTeacherId.value || branchRequired.value) return;
   const res = await fetch("/api/groups", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       name: newGroupName.value,
       teacher_id: newGroupTeacherId.value,
-      program: newGroupProgram.value,
-      level: newGroupLevel.value,
+      course_type: newGroupCourseType.value,
+      subject: newGroupSubject.value,
+      level: newGroupCourseType.value === "language" ? newGroupLevel.value : "",
+      ...(isNetworkOwner.value ? { branch_id: selectedBranchId.value } : {}),
     }),
   });
   if (res.ok) {
     newGroupName.value = "";
-    newGroupLevel.value = "";
+    newGroupCourseType.value = "language";
+    newGroupSubject.value = "english";
+    newGroupLevel.value = cefrLevels[0];
     await loadScheduleData();
   }
 }
@@ -219,13 +290,58 @@ function teacherName(id: string) {
   return teachers.value.find((t) => t.id === id)?.full_name ?? id;
 }
 
+// --- Group roster management ---
+type RosterStudent = { id: string; full_name: string; level?: string };
+const rosterOpenGroupId = ref<string | null>(null);
+const rosterStudents = ref<RosterStudent[]>([]);
+const rosterAddStudentId = ref("");
+const rosterAvailableStudents = computed(() => students.value.filter((s) => !rosterStudents.value.some((rs) => rs.id === s.id)));
+
+async function loadRoster(groupId: string) {
+  if (!token.value) return;
+  const res = await fetch(`/api/groups/${groupId}/students`, { headers: authHeaders() });
+  if (res.ok) rosterStudents.value = (await res.json()).students ?? [];
+}
+
+async function toggleRoster(groupId: string) {
+  if (rosterOpenGroupId.value === groupId) {
+    rosterOpenGroupId.value = null;
+    return;
+  }
+  rosterOpenGroupId.value = groupId;
+  rosterAddStudentId.value = "";
+  await Promise.all([loadRoster(groupId), loadStudents()]);
+}
+
+async function addRosterStudent(groupId: string) {
+  if (!token.value || !rosterAddStudentId.value) return;
+  const res = await fetch(`/api/groups/${groupId}/students`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ student_id: rosterAddStudentId.value }),
+  });
+  if (res.ok) {
+    rosterAddStudentId.value = "";
+    await loadRoster(groupId);
+  }
+}
+
+async function removeRosterStudent(groupId: string, studentId: string) {
+  if (!token.value) return;
+  const res = await fetch(`/api/groups/${groupId}/students/${studentId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (res.ok) await loadRoster(groupId);
+}
+
 // --- Reports ---
 type OverdueStudent = { id: string; full_name: string; payment_status: string };
 const overdueStudents = ref<OverdueStudent[]>([]);
 
 async function loadReports() {
   if (!token.value) return;
-  const res = await fetch("/api/reports", { headers: authHeaders() });
+  const res = await fetch(withBranch("/api/reports"), { headers: authHeaders() });
   if (res.ok) overdueStudents.value = (await res.json()).overdue_students ?? [];
 }
 
@@ -255,14 +371,26 @@ async function createTicket() {
   }
 }
 
-async function selectTab(tab: Tab) {
-  activeTab.value = tab;
+async function loadForTab(tab: Tab) {
+  if (tab === "leads") await loadLeads();
   if (tab === "students") await loadStudents();
   if (tab === "staff") await loadTeachers();
   if (tab === "payments") await loadPayments();
   if (tab === "schedule") { await loadTeachers(); await loadScheduleData(); }
   if (tab === "reports") await loadReports();
   if (tab === "tickets") await loadTickets();
+}
+
+async function selectTab(tab: Tab) {
+  activeTab.value = tab;
+  await loadForTab(tab);
+}
+
+// Re-fetch whatever the current tab shows when the network-owner
+// switches branches (or back to "all branches").
+async function onBranchChange() {
+  rosterOpenGroupId.value = null;
+  await loadForTab(activeTab.value);
 }
 
 async function login() {
@@ -277,7 +405,9 @@ async function login() {
     const data = await res.json();
     token.value = data.token;
     localStorage.setItem("dosedu_token", data.token);
+    selectedBranchId.value = "";
     activeTab.value = "leads";
+    if (isNetworkOwner.value) await loadBranches();
     await loadLeads();
   } catch {
     loginError.value = true;
@@ -289,7 +419,10 @@ function logout() {
   localStorage.removeItem("dosedu_token");
 }
 
-onMounted(loadLeads);
+onMounted(async () => {
+  if (isNetworkOwner.value) await loadBranches();
+  await loadLeads();
+});
 </script>
 
 <template>
@@ -299,6 +432,15 @@ onMounted(loadLeads);
       <span class="font-display text-base font-bold text-ink sm:text-lg">{{ t("app.title") }}</span>
     </div>
     <div class="flex items-center gap-2 sm:gap-3">
+      <select
+        v-if="token && isNetworkOwner"
+        v-model="selectedBranchId"
+        class="rounded-lg border border-line bg-surface1 px-2 py-1 text-sm text-ink"
+        @change="onBranchChange"
+      >
+        <option value="">{{ t("branch.all") }}</option>
+        <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+      </select>
       <button v-if="token" type="button" class="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-contrast hover:opacity-90" @click="logout">↩</button>
       <LangSwitcher />
       <ThemeToggle />
@@ -355,6 +497,14 @@ onMounted(loadLeads);
             <div v-for="lead in columns[stage]" :key="lead.id" class="mt-3 rounded-lg border border-line bg-surface1 p-3">
               <p class="text-sm font-semibold text-ink">{{ lead.full_name }}</p>
               <p class="text-xs text-ink-muted">{{ lead.phone }}</p>
+              <div v-if="lead.subject || lead.level_test_result" class="mt-1.5 flex flex-wrap gap-1">
+                <span v-if="lead.subject" class="font-accent rounded-full bg-badge1 px-2 py-0.5 text-[10px] font-semibold text-badge1-fg">
+                  {{ t(`subjects.${lead.subject}`) }}
+                </span>
+                <span v-if="lead.level_test_result" class="rounded-full bg-surface3 px-2 py-0.5 text-[10px] text-ink-muted">
+                  {{ t("leads.levelTest") }}: {{ lead.level_test_result }}
+                </span>
+              </div>
               <select
                 class="mt-2 w-full rounded-md border border-line bg-surface1 px-2 py-1 text-xs text-ink"
                 :value="stage"
@@ -374,16 +524,18 @@ onMounted(loadLeads);
             <h3 class="font-display text-sm font-semibold text-ink">{{ t("staff.add") }}</h3>
             <label class="block text-sm text-ink-muted">Email<input v-model="newTeacherEmail" type="email" required class="mt-1" /></label>
             <label class="block text-sm text-ink-muted">{{ t("staff.fullName") }}<input v-model="newTeacherName" required class="mt-1" /></label>
-            <label class="block text-sm text-ink-muted">{{ t("staff.subject") }}<input v-model="newTeacherSubject" class="mt-1" /></label>
             <label class="block text-sm text-ink-muted">
-              {{ t("staff.languageScope") }}
-              <select v-model="newTeacherLanguageScope" class="mt-1">
-                <option value="">{{ t("staff.languageScopeNone") }}</option>
-                <option value="en">{{ t("staff.languageScopeEn") }}</option>
-                <option value="zh">{{ t("staff.languageScopeZh") }}</option>
+              {{ t("staff.subject") }}
+              <select v-model="newTeacherSubject" class="mt-1">
+                <option value="">{{ t("subjects.unassigned") }}</option>
+                <option value="english">{{ t("subjects.english") }}</option>
+                <option value="chinese">{{ t("subjects.chinese") }}</option>
+                <option value="mad">{{ t("subjects.mad") }}</option>
+                <option value="prodlenka">{{ t("subjects.prodlenka") }}</option>
               </select>
             </label>
-            <button type="submit" class="font-accent w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast">{{ t("staff.create") }}</button>
+            <button type="submit" :disabled="branchRequired" class="font-accent w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast disabled:opacity-60">{{ t("staff.create") }}</button>
+            <p v-if="branchRequired" class="text-xs text-danger">{{ t("branch.required") }}</p>
           </form>
           <div v-if="newTeacherCredentials" class="mt-3 rounded-xl border border-accent bg-surface2 p-4 text-sm">
             <p class="font-semibold text-ink">
@@ -398,13 +550,13 @@ onMounted(loadLeads);
           <div v-for="teacher in teachers" :key="teacher.id" class="flex items-center justify-between rounded-lg border border-line bg-surface1 p-3 text-sm">
             <div>
               <p class="font-semibold text-ink">{{ teacher.full_name || teacher.email }}</p>
-              <p class="text-ink-muted">{{ teacher.email }} · {{ teacher.subject }}</p>
+              <p class="text-ink-muted">{{ teacher.email }}</p>
             </div>
             <span
-              v-if="teacher.language_scope"
+              v-if="teacher.subject"
               class="font-accent shrink-0 rounded-full bg-badge1 px-2 py-0.5 text-xs font-semibold text-badge1-fg"
             >
-              {{ teacher.language_scope === "zh" ? "中文" : "EN" }}
+              {{ t(`subjects.${teacher.subject}`) }}
             </span>
           </div>
           <p v-if="!teachers.length" class="text-sm text-ink-muted">—</p>
@@ -476,7 +628,8 @@ onMounted(loadLeads);
           <form class="space-y-3 rounded-xl border border-line bg-surface2 p-4" @submit.prevent="createRoom">
             <h3 class="font-display text-sm font-semibold text-ink">{{ t("schedule.addRoom") }}</h3>
             <input v-model="newRoomName" :placeholder="t('schedule.roomName')" required class="text-sm" />
-            <button type="submit" class="w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast">{{ t("schedule.add") }}</button>
+            <button type="submit" :disabled="branchRequired" class="w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast disabled:opacity-60">{{ t("schedule.add") }}</button>
+            <p v-if="branchRequired" class="text-xs text-danger">{{ t("branch.required") }}</p>
             <div class="mt-2 flex flex-wrap gap-1">
               <span v-for="room in rooms" :key="room.id" class="rounded-full bg-surface3 px-2 py-0.5 text-xs text-ink">{{ room.name }}</span>
             </div>
@@ -490,14 +643,67 @@ onMounted(loadLeads);
                 <option value="" disabled>{{ t("schedule.teacher") }}</option>
                 <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">{{ teacher.full_name }}</option>
               </select>
-              <select v-model="newGroupProgram" class="text-sm">
-                <option value="language_course">{{ t("schedule.languageCourse") }}</option>
-                <option value="prodlenka">{{ t("schedule.prodlenka") }}</option>
+              <select v-model="newGroupCourseType" class="text-sm" @change="onGroupCourseTypeChange">
+                <option value="language">{{ t("courseTypes.language") }}</option>
+                <option value="care_and_prep">{{ t("courseTypes.care_and_prep") }}</option>
               </select>
-              <input v-model="newGroupLevel" :placeholder="t('schedule.level')" class="text-sm" />
+              <select v-model="newGroupSubject" class="text-sm" @change="onGroupSubjectChange">
+                <option v-for="s in groupSubjectOptions" :key="s" :value="s">{{ t(`subjects.${s}`) }}</option>
+              </select>
+              <select v-if="newGroupCourseType === 'language'" v-model="newGroupLevel" class="text-sm">
+                <option v-for="lvl in groupLevelOptions" :key="lvl" :value="lvl">{{ lvl }}</option>
+              </select>
             </div>
-            <button type="submit" class="w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast">{{ t("schedule.add") }}</button>
+            <button type="submit" :disabled="branchRequired" class="w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-contrast disabled:opacity-60">{{ t("schedule.add") }}</button>
+            <p v-if="branchRequired" class="text-xs text-danger">{{ t("branch.required") }}</p>
           </form>
+        </div>
+
+        <div class="rounded-xl border border-line bg-surface2 p-4">
+          <h3 class="mb-2 font-display text-sm font-semibold text-ink">{{ t("schedule.groupsList") }}</h3>
+          <div v-for="g in groups" :key="g.id" class="border-b border-line py-2 text-sm last:border-0">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span class="font-semibold text-ink">{{ g.name }}</span>
+                <span class="text-ink-muted">
+                  · {{ teacherName(g.teacher_id) }} · {{ t(`courseTypes.${g.course_type}`) }}
+                  <template v-if="g.subject"> · {{ t(`subjects.${g.subject}`) }}</template>
+                  <template v-if="g.level"> · {{ g.level }}</template>
+                </span>
+              </div>
+              <button
+                type="button"
+                class="font-accent shrink-0 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-ink hover:bg-surface3"
+                @click="toggleRoster(g.id)"
+              >
+                {{ rosterOpenGroupId === g.id ? t("schedule.hideRoster") : t("schedule.manageRoster") }}
+              </button>
+            </div>
+
+            <div v-if="rosterOpenGroupId === g.id" class="mt-2 rounded-lg border border-line bg-surface1 p-3">
+              <div v-for="rs in rosterStudents" :key="rs.id" class="flex items-center justify-between border-b border-line py-1.5 text-xs last:border-0">
+                <span class="text-ink">{{ rs.full_name }} <span v-if="rs.level" class="text-ink-muted">· {{ rs.level }}</span></span>
+                <button type="button" class="text-danger hover:underline" @click="removeRosterStudent(g.id, rs.id)">{{ t("schedule.removeStudent") }}</button>
+              </div>
+              <p v-if="!rosterStudents.length" class="text-xs text-ink-muted">{{ t("schedule.noRosterStudents") }}</p>
+
+              <div class="mt-2 flex gap-2">
+                <select v-model="rosterAddStudentId" class="flex-1 text-xs">
+                  <option value="" disabled>{{ t("schedule.selectStudent") }}</option>
+                  <option v-for="s in rosterAvailableStudents" :key="s.id" :value="s.id">{{ s.full_name }}</option>
+                </select>
+                <button
+                  type="button"
+                  :disabled="!rosterAddStudentId"
+                  class="shrink-0 rounded-lg bg-accent px-2.5 py-1 text-xs font-semibold text-accent-contrast disabled:opacity-60"
+                  @click="addRosterStudent(g.id)"
+                >
+                  {{ t("schedule.addStudent") }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <p v-if="!groups.length" class="text-sm text-ink-muted">—</p>
         </div>
 
         <form class="space-y-3 rounded-xl border border-line bg-surface2 p-4" @submit.prevent="createSlot">

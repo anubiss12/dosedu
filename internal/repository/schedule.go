@@ -172,6 +172,86 @@ func (r *ScheduleRepo) GetGroup(ctx context.Context, groupID string) (*Group, er
 	return &g, nil
 }
 
+// --- Group roster (group_students) ---
+
+// AddGroupStudent enrolls a student into a group. Idempotent — enrolling
+// an already-enrolled student is a no-op rather than an error.
+func (r *ScheduleRepo) AddGroupStudent(ctx context.Context, groupID, studentID string) error {
+	_, err := r.store.Pool.Exec(ctx, `
+		INSERT INTO group_students (group_id, student_id) VALUES ($1, $2)
+		ON CONFLICT (group_id, student_id) DO NOTHING
+	`, groupID, studentID)
+	return err
+}
+
+func (r *ScheduleRepo) RemoveGroupStudent(ctx context.Context, groupID, studentID string) error {
+	_, err := r.store.Pool.Exec(ctx, `
+		DELETE FROM group_students WHERE group_id = $1 AND student_id = $2
+	`, groupID, studentID)
+	return err
+}
+
+// RosterStudent is one row of a group's roster — just enough to render
+// a roster list and to pick a student when assigning an official test
+// or creating a daily log.
+type RosterStudent struct {
+	ID       string `json:"id"`
+	FullName string `json:"full_name"`
+	Level    string `json:"level,omitempty"`
+}
+
+func (r *ScheduleRepo) ListGroupStudents(ctx context.Context, groupID string) ([]RosterStudent, error) {
+	rows, err := r.store.Pool.Query(ctx, `
+		SELECT s.id, s.full_name, COALESCE(s.level::text, '')
+		FROM group_students gs
+		JOIN students s ON s.id = gs.student_id
+		WHERE gs.group_id = $1
+		ORDER BY s.full_name
+	`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []RosterStudent
+	for rows.Next() {
+		var s RosterStudent
+		if err := rows.Scan(&s.ID, &s.FullName, &s.Level); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// ListByStudent returns a student's own weekly schedule — every slot
+// booked for any group they're enrolled in — the family-facing
+// "Сабақ кестесі" view (a scoped-down version of the director's full
+// branch grid).
+func (r *ScheduleRepo) ListByStudent(ctx context.Context, studentID string) ([]ScheduleSlot, error) {
+	rows, err := r.store.Pool.Query(ctx, `
+		SELECT ss.id, ss.group_id, ss.teacher_id, ss.room_id, ss.weekday, ss.start_time::text, ss.end_time::text
+		FROM schedule_slots ss
+		JOIN group_students gs ON gs.group_id = ss.group_id
+		WHERE gs.student_id = $1
+		ORDER BY ss.weekday, ss.start_time
+	`, studentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ScheduleSlot
+	for rows.Next() {
+		var s ScheduleSlot
+		if err := rows.Scan(&s.ID, &s.GroupID, &s.TeacherID, &s.RoomID, &s.Weekday, &s.StartTime, &s.EndTime); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // Daily Schedule view.
 func (r *ScheduleRepo) ListByTeacher(ctx context.Context, teacherID string) ([]ScheduleSlot, error) {
 	rows, err := r.store.Pool.Query(ctx, `
@@ -222,6 +302,24 @@ func (r *ScheduleRepo) CreateTeacher(ctx context.Context, branchID, email, passw
 		RETURNING id
 	`, branchID, email, passwordHash, fullName, subj).Scan(&id)
 	return id, err
+}
+
+// ResetTeacherPassword overwrites a teacher's password hash — the
+// director "force reset" flow. branchID "" (network-owner director)
+// allows any branch's teacher; otherwise the reset is scoped to the
+// director's own branch so one branch can't reset another's teacher.
+func (r *ScheduleRepo) ResetTeacherPassword(ctx context.Context, teacherID, branchID, passwordHash string) error {
+	tag, err := r.store.Pool.Exec(ctx, `
+		UPDATE teachers SET password_hash = $2
+		WHERE id = $1 AND ($3 = '' OR branch_id = $3::uuid)
+	`, teacherID, passwordHash, branchID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ListTeachers returns every active teacher in a branch, or every

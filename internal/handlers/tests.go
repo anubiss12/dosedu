@@ -96,6 +96,10 @@ type SubmitPlacementRequest struct {
 	Phone    string         `json:"phone" binding:"required"`
 	Subject  string         `json:"subject" binding:"required,oneof=english chinese"`
 	Answers  []SubmitAnswer `json:"answers" binding:"required,min=1"`
+	// BranchID is optional — the lead-form's branch picker on the
+	// landing page (GET /public/branches). Left empty, the lead is
+	// unassigned until a director/staff member picks it up.
+	BranchID string `json:"branch_id"`
 }
 
 // SubmitPlacementTest godoc
@@ -139,7 +143,7 @@ func (d *Deps) SubmitPlacementTest(c *gin.Context) {
 	total := len(questions)
 
 	levelResult := req.Subject + ": " + itoa(score) + "/" + itoa(total)
-	leadID, err := d.Leads.Insert(c.Request.Context(), "", req.FullName, req.Phone, levelResult, req.Subject)
+	leadID, err := d.Leads.Insert(c.Request.Context(), req.BranchID, req.FullName, req.Phone, levelResult, req.Subject)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save lead"})
 		return
@@ -183,10 +187,8 @@ func itoa(n int) string {
 // @Router			/family/practice/questions [get]
 func (d *Deps) GetPracticeQuestions(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take practice tests"})
-		return
-	}
+	// Role is already enforced by middleware.RequireRole(auth.RoleStudent)
+	// on this route (router.go).
 	summary, ok := d.requireLanguageCourse(c, claims.UserID)
 	if !ok {
 		return
@@ -217,10 +219,6 @@ type SubmitPracticeRequest struct {
 // @Router			/family/practice/submit [post]
 func (d *Deps) SubmitPracticeTest(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take practice tests"})
-		return
-	}
 	summary, ok := d.requireLanguageCourse(c, claims.UserID)
 	if !ok {
 		return
@@ -292,10 +290,6 @@ func (d *Deps) ListPracticeHistory(c *gin.Context) {
 // @Router			/teacher/questions [get]
 func (d *Deps) ListQuestionBank(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleTeacher {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only teachers browse the question bank"})
-		return
-	}
 	if claims.Subject != "english" && claims.Subject != "chinese" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "no_subject"})
 		return
@@ -333,10 +327,6 @@ type CreateTestAssignmentRequest struct {
 // @Router			/teacher/groups/{groupId}/test-assignments [post]
 func (d *Deps) CreateTestAssignment(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleTeacher {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only teachers assign official tests"})
-		return
-	}
 	if claims.Subject != "english" && claims.Subject != "chinese" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "no_subject", "message": "Сізге тіл пәні тағайындалмаған."})
 		return
@@ -402,10 +392,6 @@ func (d *Deps) ListActiveTestAssignments(c *gin.Context) {
 // @Router			/family/test-assignments/{id}/questions [get]
 func (d *Deps) GetTestAssignmentQuestions(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take tests"})
-		return
-	}
 	if _, ok := d.requireLanguageCourse(c, claims.UserID); !ok {
 		return
 	}
@@ -440,10 +426,6 @@ func (d *Deps) GetTestAssignmentQuestions(c *gin.Context) {
 // @Router			/family/test-assignments/{id}/submit [post]
 func (d *Deps) SubmitTestAssignment(c *gin.Context) {
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students take tests"})
-		return
-	}
 	if _, ok := d.requireLanguageCourse(c, claims.UserID); !ok {
 		return
 	}
@@ -507,12 +489,6 @@ type ExplainMistakeRequest struct {
 // @Success		200	{object}	map[string]string
 // @Router			/family/tests/explain [post]
 func (d *Deps) ExplainQuizMistake(c *gin.Context) {
-	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleStudent {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only students request quiz explanations"})
-		return
-	}
-
 	var req ExplainMistakeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

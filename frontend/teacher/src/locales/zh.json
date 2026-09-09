@@ -53,7 +53,10 @@
     "gradebook": "点名册",
     "payment": "付款",
     "tests": "上传测试",
-    "certificate": "证书"
+    "certificate": "证书",
+    "questionBank": "题库",
+    "assignTest": "分配测试",
+    "dailyLog": "每日记录"
   },
   "schedule": {
     "room": "教室"
@@ -67,5 +70,29 @@
     "confirm": "确认",
     "success": "付款已确认。",
     "error": "出现错误。"
+  },
+  "questionBank": {
+    "title": "题库",
+    "poolPractice": "练习",
+    "poolOfficial": "正式",
+    "empty": "未找到该级别/题库的题目。"
+  },
+  "assignTest": {
+    "title": "分配正式测试",
+    "loadQuestions": "加载题目",
+    "assign": "分配测试",
+    "success": "测试分配成功。",
+    "error": "出现错误。",
+    "wrongSubject": "该班级不属于您的学科。"
+  },
+  "dailyLog": {
+    "title": "每日记录",
+    "note": "教师备注",
+    "save": "保存",
+    "error": "保存失败。",
+    "homeworkNA": "不适用",
+    "homeworkDone": "已完成",
+    "homeworkPartial": "部分完成",
+    "homeworkNotDone": "未完成"
   }
 }

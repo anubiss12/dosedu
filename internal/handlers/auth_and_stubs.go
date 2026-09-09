@@ -16,6 +16,7 @@ import (
 	"github.com/dosedu/lms/internal/ai"
 	"github.com/dosedu/lms/internal/auth"
 	"github.com/dosedu/lms/internal/middleware"
+	"github.com/dosedu/lms/internal/qrcode"
 	"github.com/dosedu/lms/internal/ratelimit"
 	"github.com/dosedu/lms/internal/repository"
 	"github.com/dosedu/lms/internal/telegram"
@@ -44,6 +45,7 @@ type Deps struct {
 	TestAssignments       *repository.TestAssignmentRepo
 	DailyLogs             *repository.DailyLogRepo
 	Impersonation         *repository.ImpersonationRepo
+	ChurnAlerts           *repository.ChurnAlertRepo
 	TestUploads           *repository.TestUploadRepo
 	Payments              *repository.PaymentRepo
 	AI                    *ai.Client
@@ -262,10 +264,32 @@ func (d *Deps) ListBranches(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"branches": branches})
 }
 
+// DeleteBranch godoc
+// @Summary		Soft-delete a branch
+// @Description	Removes the branch from every listing without deleting its row or anything referencing it — history (students, groups, payments, ...) is preserved. Distinct from a temporary block, which would use branch status instead.
+// @Tags			s-admin
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id	path		string	true	"Branch ID"
+// @Success		200	{object}	map[string]string
+// @Failure		404	{object}	map[string]string
+// @Router			/s-admin/branches/{id} [delete]
+func (d *Deps) DeleteBranch(c *gin.Context) {
+	if err := d.Branches.SoftDelete(c.Request.Context(), c.Param("id")); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "branch not found"})
+		return
+	}
+	_ = d.SystemLogs.Insert(c.Request.Context(), "info", "s-admin", "Branch deleted: "+c.Param("id"))
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}
+
 type CreateDirectorRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	FullName string `json:"full_name" binding:"required"`
 	BranchID string `json:"branch_id" binding:"required"`
+	// IsNetworkOwner grants this director every branch (via
+	// middleware.EffectiveBranchID) instead of just BranchID's "home" branch.
+	IsNetworkOwner bool `json:"is_network_owner"`
 }
 
 // CreateDirector godoc
@@ -296,7 +320,7 @@ func (d *Deps) CreateDirector(c *gin.Context) {
 		return
 	}
 
-	id, err := d.AdminDirectors.Create(c.Request.Context(), req.BranchID, req.Email, hash, req.FullName)
+	id, err := d.AdminDirectors.Create(c.Request.Context(), req.BranchID, req.Email, hash, req.FullName, req.IsNetworkOwner)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create director"})
 		return
@@ -325,6 +349,41 @@ func (d *Deps) ListDirectors(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"directors": directors})
+}
+
+// ForceResetDirectorPassword godoc
+// @Summary		Force-reset a director's password
+// @Description	Super-admin-only. Generates a new policy-compliant password and overwrites the director's hash immediately — for a locked-out director, no "forgot password" flow exists yet. Returned once, same one-time-display pattern as account creation.
+// @Tags			s-admin
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id	path		string	true	"Director ID"
+// @Success		200	{object}	map[string]string
+// @Router			/s-admin/directors/{id}/force-reset-password [post]
+func (d *Deps) ForceResetDirectorPassword(c *gin.Context) {
+	directorID := c.Param("id")
+
+	tempPassword, err := auth.GenerateComplexPassword(auth.RoleDirector, 8)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate password"})
+		return
+	}
+	hash, err := auth.HashPassword(auth.RoleDirector, tempPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	if err := d.AdminDirectors.ResetPassword(c.Request.Context(), directorID, hash); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "director not found"})
+		return
+	}
+
+	_ = d.SystemLogs.Insert(c.Request.Context(), "info", "s-admin", "Password force-reset for director: "+directorID)
+	c.JSON(http.StatusOK, gin.H{
+		"temporary_password": tempPassword,
+		"credentials_notice": "Бұл құпия сөз тек осы жауапта бір рет көрсетіледі — оны директорға дереу жіберіңіз.",
+	})
 }
 
 // ListSystemLogs godoc
@@ -423,6 +482,40 @@ func (d *Deps) ListTeachers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"teachers": teachers})
+}
+
+// ForceResetTeacherPassword godoc
+// @Summary		Force-reset a teacher's password
+// @Description	Director-only, scoped to the director's own branch (or any branch for a network-owner director). Generates a new policy-compliant password and overwrites the teacher's hash immediately.
+// @Tags			director,staff
+// @Produce		json
+// @Security		BearerAuth
+// @Param			id	path		string	true	"Teacher ID"
+// @Success		200	{object}	map[string]string
+// @Router			/director/teachers/{id}/force-reset-password [post]
+func (d *Deps) ForceResetTeacherPassword(c *gin.Context) {
+	teacherID := c.Param("id")
+
+	tempPassword, err := auth.GenerateTeacherPassword(8)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate password"})
+		return
+	}
+	hash, err := auth.HashPassword(auth.RoleTeacher, tempPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	if err := d.Schedule.ResetTeacherPassword(c.Request.Context(), teacherID, middleware.EffectiveBranchID(c), hash); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "teacher not found in your branch"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"temporary_password": tempPassword,
+		"credentials_notice": "Бұл құпия сөз тек осы жауапта бір рет көрсетіледі — оны мұғалімге дереу жіберіңіз.",
+	})
 }
 
 func (d *Deps) GetScheduleGrid(c *gin.Context) {
@@ -558,6 +651,98 @@ func (d *Deps) CreateGroup(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
 
+// ListDirectorBranches godoc
+// @Summary		Branches this director may act on
+// @Description	A network-owner director gets every branch (for the frontend's branch switcher and for picking a target branch_id on writes); a single-branch director gets just their own.
+// @Tags			director
+// @Produce		json
+// @Security		BearerAuth
+// @Success		200	{object}	map[string]any
+// @Router			/director/branches [get]
+func (d *Deps) ListDirectorBranches(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+
+	branches, err := d.Branches.ListAll(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load branches"})
+		return
+	}
+
+	if claims.IsNetworkOwner {
+		c.JSON(http.StatusOK, gin.H{"branches": branches})
+		return
+	}
+	for _, b := range branches {
+		if b.ID == claims.BranchID {
+			c.JSON(http.StatusOK, gin.H{"branches": []repository.Branch{b}})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"branches": []repository.Branch{}})
+}
+
+// AddGroupStudentRequest is the body for enrolling a student into a group.
+type AddGroupStudentRequest struct {
+	StudentID string `json:"student_id" binding:"required"`
+}
+
+// AddGroupStudent godoc
+// @Summary		Enroll a student into a group
+// @Tags			director,groups
+// @Accept			json
+// @Produce		json
+// @Security		BearerAuth
+// @Param			groupId	path		string					true	"Group ID"
+// @Param			request	body		AddGroupStudentRequest	true	"Student to enroll"
+// @Success		201		{object}	map[string]string
+// @Router			/director/groups/{groupId}/students [post]
+func (d *Deps) AddGroupStudent(c *gin.Context) {
+	var req AddGroupStudentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := d.Schedule.AddGroupStudent(c.Request.Context(), c.Param("groupId"), req.StudentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to enroll student"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"status": "enrolled"})
+}
+
+// RemoveGroupStudent godoc
+// @Summary		Remove a student from a group
+// @Tags			director,groups
+// @Produce		json
+// @Security		BearerAuth
+// @Param			groupId		path		string	true	"Group ID"
+// @Param			studentId	path		string	true	"Student ID"
+// @Success		200			{object}	map[string]string
+// @Router			/director/groups/{groupId}/students/{studentId} [delete]
+func (d *Deps) RemoveGroupStudent(c *gin.Context) {
+	if err := d.Schedule.RemoveGroupStudent(c.Request.Context(), c.Param("groupId"), c.Param("studentId")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove student"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "removed"})
+}
+
+// ListGroupStudents godoc
+// @Summary		A group's current roster
+// @Tags			director,groups
+// @Produce		json
+// @Security		BearerAuth
+// @Param			groupId	path		string	true	"Group ID"
+// @Success		200		{object}	map[string]any
+// @Router			/director/groups/{groupId}/students [get]
+func (d *Deps) ListGroupStudents(c *gin.Context) {
+	students, err := d.Schedule.ListGroupStudents(c.Request.Context(), c.Param("groupId"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load roster"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"students": students})
+}
+
 func (d *Deps) GetMonthlyReports(c *gin.Context) {
 	overdue, err := d.Students.ListOverdue(c.Request.Context(), middleware.EffectiveBranchID(c))
 	if err != nil {
@@ -565,6 +750,23 @@ func (d *Deps) GetMonthlyReports(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"overdue_students": overdue})
+}
+
+// ListChurnAlerts godoc
+// @Summary		Students at risk of dropping out
+// @Description	Language students with a 3+ lesson absence streak, or care_and_prep children with a 7+ day absence streak. Currently always empty — nothing writes to churn_alerts yet (the detection job is a follow-up); this endpoint exists so the contract is stable once it does.
+// @Tags			director
+// @Produce		json
+// @Security		BearerAuth
+// @Success		200	{object}	map[string]any
+// @Router			/director/churn-alerts [get]
+func (d *Deps) ListChurnAlerts(c *gin.Context) {
+	alerts, err := d.ChurnAlerts.ListByBranch(c.Request.Context(), middleware.EffectiveBranchID(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load churn alerts"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 }
 
 // ListBranchStudents godoc
@@ -789,4 +991,86 @@ func (d *Deps) GetBalance(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"balance": summary.Balance, "payment_status": summary.PaymentStatus})
+}
+
+// GetMySchedule godoc
+// @Summary		A student's own weekly schedule
+// @Description	Student-only — every slot for any group they're enrolled in.
+// @Tags			family
+// @Produce		json
+// @Security		BearerAuth
+// @Success		200	{object}	map[string]any
+// @Router			/family/schedule [get]
+func (d *Deps) GetMySchedule(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+	slots, err := d.Schedule.ListByStudent(c.Request.Context(), claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load schedule"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"schedule": slots})
+}
+
+// GetMyQRCode godoc
+// @Summary		A student's own scannable check-in QR code
+// @Description	Student-only. Returns the stable qr_token plus a ready-to-display PNG data URL — shown on screen at the door kiosk.
+// @Tags			family
+// @Produce		json
+// @Security		BearerAuth
+// @Success		200	{object}	map[string]string
+// @Router			/family/qr-code [get]
+func (d *Deps) GetMyQRCode(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+	token, err := d.Students.GetQRToken(c.Request.Context(), claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+	dataURL, err := qrcode.DataURL(token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to render qr code"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"qr_token": token, "qr_image_base64": dataURL})
+}
+
+// GetTodayStatus godoc
+// @Summary		Today's arrival/departure timing
+// @Description	Student or parent. For a care_and_prep child, expected_end_at is checked_in_at + 3 hours (the fixed daily session length) — null for a language student, and null for either role before check-in.
+// @Tags			family
+// @Produce		json
+// @Security		BearerAuth
+// @Success		200	{object}	map[string]any
+// @Router			/family/today-status [get]
+func (d *Deps) GetTodayStatus(c *gin.Context) {
+	claims := c.MustGet("claims").(*auth.Claims)
+	studentID, err := d.resolveStudentID(c.Request.Context(), claims)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	summary, err := d.Students.GetSummary(c.Request.Context(), studentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	today, err := d.Attendance.GetToday(c.Request.Context(), studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load today's status"})
+		return
+	}
+
+	var expectedEnd *time.Time
+	if summary.CourseType == "care_and_prep" && today.CheckedInAt != nil {
+		t := today.CheckedInAt.Add(3 * time.Hour)
+		expectedEnd = &t
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"checked_in_at":   today.CheckedInAt,
+		"checked_out_at":  today.CheckedOutAt,
+		"expected_end_at": expectedEnd,
+	})
 }

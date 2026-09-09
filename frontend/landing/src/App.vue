@@ -41,65 +41,166 @@ async function submitLead(extra?: { levelTestResult?: string }) {
 }
 
 // ============================================================
-// Quiz bank — shared between the "Тіл курстары" trial test and the
-// logged-in student's unlimited practice mode.
+// Inline placement-test widget — lives in the hero, right where the
+// old hardcoded "student journal" mock card used to be. Pick a
+// language, answer the real backend-scored placement test (20 mixed
+// -level questions, no client-side scoring), leave contact + branch
+// details and get the server-computed score back, mapped to a
+// CEFR/HSK level label client-side.
 // ============================================================
-type QuizQuestion = { q: string; options: string[]; correct: number };
-const quizBank: Record<"en" | "zh", QuizQuestion[]> = {
-  en: [
-    { q: "She ___ to school every day.", options: ["go", "goes", "going", "gone"], correct: 1 },
-    { q: "What is the plural of 'child'?", options: ["childs", "children", "childes", "child"], correct: 1 },
-    { q: "Choose the opposite of 'happy'.", options: ["sad", "glad", "fast", "big"], correct: 0 },
-  ],
-  zh: [
-    { q: "\"你好\" (nǐ hǎo) мағынасы?", options: ["Сау бол", "Сәлем", "Рахмет", "Кешіріңіз"], correct: 1 },
-    { q: "\"谢谢\" (xièxiè) мағынасы?", options: ["Иә", "Жоқ", "Рахмет", "Сәлем"], correct: 2 },
-    { q: "\"再见\" (zàijiàn) мағынасы?", options: ["Сау бол", "Рахмет", "Сәлем", "Кешіріңіз"], correct: 0 },
-  ],
+type PlacementQuestion = {
+  id: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c?: string;
+  option_d?: string;
 };
 
-// ============================================================
-// Trial test modal — "Тіл курстары" in the nav opens this: pick a
-// language, answer a short quiz, then leave contact details.
-// ============================================================
-const showTrialModal = ref(false);
-const trialLang = ref<"en" | "zh" | null>(null);
+type Branch = { id: string; name: string };
+
+const trialLang = ref<"english" | "chinese" | null>(null);
 const trialStep = ref<"pick" | "quiz" | "contact" | "done">("pick");
 const trialQIndex = ref(0);
-const trialCorrectCount = ref(0);
+const trialQuestions = ref<PlacementQuestion[]>([]);
+const trialAnswers = ref<Record<string, number>>({});
+const trialLoading = ref(false);
+const trialLoadError = ref(false);
+const trialSubmitting = ref(false);
+const trialSubmitError = ref(false);
+const trialRateLimited = ref(false);
+const trialScore = ref<{ score: number; total: number } | null>(null);
+const trialLevel = ref("");
+const trialBranchId = ref("");
+const branches = ref<Branch[]>([]);
+const branchesLoading = ref(false);
 
-function openTrial() {
-  showTrialModal.value = true;
+// Rough percentage bands, client-side only — the backend never sends
+// a level, only a raw score/total (correct answers are never exposed
+// either, see loadTrialQuestions).
+const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const HSK_LEVELS = ["HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"];
+
+function computeLevel(subject: "english" | "chinese" | null, score: number, total: number): string {
+  if (!subject || !total) return "";
+  const pct = score / total;
+  const levels = subject === "chinese" ? HSK_LEVELS : CEFR_LEVELS;
+  if (pct < 0.25) return levels[0];
+  if (pct < 0.4) return levels[1];
+  if (pct < 0.55) return levels[2];
+  if (pct < 0.7) return levels[3];
+  if (pct < 0.85) return levels[4];
+  return levels[5];
+}
+
+function trialOptions(question: PlacementQuestion): string[] {
+  return [question.option_a, question.option_b, question.option_c, question.option_d].filter(
+    (opt): opt is string => !!opt,
+  );
+}
+
+async function loadBranches() {
+  if (branches.value.length || branchesLoading.value) return;
+  branchesLoading.value = true;
+  try {
+    const res = await fetch("/api/public/branches");
+    if (!res.ok) throw new Error("request failed");
+    const data = await res.json();
+    branches.value = data.branches ?? [];
+  } catch {
+    branches.value = [];
+  } finally {
+    branchesLoading.value = false;
+  }
+}
+
+function resetTrial() {
   trialLang.value = null;
   trialStep.value = "pick";
   trialQIndex.value = 0;
-  trialCorrectCount.value = 0;
+  trialQuestions.value = [];
+  trialAnswers.value = {};
+  trialLoadError.value = false;
+  trialSubmitError.value = false;
+  trialRateLimited.value = false;
+  trialScore.value = null;
+  trialLevel.value = "";
+  trialBranchId.value = "";
+  fullName.value = "";
+  phone.value = "";
 }
 
-function pickTrialLang(lang: "en" | "zh") {
+async function loadTrialQuestions() {
+  if (!trialLang.value) return;
+  trialLoading.value = true;
+  trialLoadError.value = false;
+  try {
+    const res = await fetch(`/api/public/placement-test/questions?subject=${trialLang.value}`);
+    if (!res.ok) throw new Error("request failed");
+    const data = await res.json();
+    trialQuestions.value = data.questions ?? [];
+  } catch {
+    trialLoadError.value = true;
+  } finally {
+    trialLoading.value = false;
+  }
+}
+
+function pickTrialLang(lang: "english" | "chinese") {
   trialLang.value = lang;
   trialStep.value = "quiz";
   trialQIndex.value = 0;
-  trialCorrectCount.value = 0;
+  trialAnswers.value = {};
+  void loadTrialQuestions();
 }
 
 function answerTrial(optionIndex: number) {
-  if (!trialLang.value) return;
-  const questions = quizBank[trialLang.value];
-  if (optionIndex === questions[trialQIndex.value].correct) {
-    trialCorrectCount.value++;
-  }
-  if (trialQIndex.value + 1 < questions.length) {
+  const question = trialQuestions.value[trialQIndex.value];
+  if (!question) return;
+  trialAnswers.value[question.id] = optionIndex;
+  if (trialQIndex.value + 1 < trialQuestions.value.length) {
     trialQIndex.value++;
   } else {
     trialStep.value = "contact";
+    void loadBranches();
   }
 }
 
 async function submitTrialContact() {
-  const label = trialLang.value === "en" ? "English" : "Chinese";
-  await submitLead({ levelTestResult: `${label}: ${trialCorrectCount.value}/${quizBank[trialLang.value!].length}` });
-  trialStep.value = "done";
+  trialSubmitting.value = true;
+  trialSubmitError.value = false;
+  trialRateLimited.value = false;
+  try {
+    const answers = Object.entries(trialAnswers.value).map(([question_id, selected]) => ({
+      question_id,
+      selected,
+    }));
+    const res = await fetch("/api/public/placement-test/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: fullName.value,
+        phone: phone.value,
+        subject: trialLang.value,
+        branch_id: trialBranchId.value || undefined,
+        answers,
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 429) trialRateLimited.value = true;
+      throw new Error("request failed");
+    }
+    const data = await res.json();
+    trialScore.value = { score: data.score, total: data.total };
+    trialLevel.value = computeLevel(trialLang.value, data.score, data.total);
+    fullName.value = "";
+    phone.value = "";
+    trialStep.value = "done";
+  } catch {
+    trialSubmitError.value = true;
+  } finally {
+    trialSubmitting.value = false;
+  }
 }
 
 // ============================================================
@@ -108,54 +209,15 @@ async function submitTrialContact() {
 const showProdlenkaModal = ref(false);
 
 // ============================================================
-// Login modal — authenticates only. On success, hands the token off
-// to the app.<domain> subdomain (a full page) instead of rendering
-// the dashboard inline here, since the practice-test/monitoring
-// experience deserves more room than a small popup.
+// Program card icons (Programs grid, below) — plain emoji, no icon
+// library in this repo.
 // ============================================================
-const showLoginModal = ref(false);
-const identifier = ref("");
-const password = ref("");
-const loginError = ref(false);
-const showForgotPassword = ref(false);
-
-function detectRole(value: string): "student" | "parent" {
-  const looksLikePhone = /^\+?\d[\d\s()-]{6,}$/.test(value.trim());
-  return looksLikePhone ? "parent" : "student";
-}
-
-function appPortalUrl(hash?: string): string {
-  const { protocol, hostname, port } = window.location;
-  const portSuffix = port ? `:${port}` : "";
-  return `${protocol}//app.${hostname}${portSuffix}/${hash ? `#${hash}` : ""}`;
-}
-
-async function login() {
-  loginError.value = false;
-  const role = detectRole(identifier.value);
-  try {
-    const res = await fetch("/api/public/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: identifier.value, password: password.value, role }),
-    });
-    if (!res.ok) throw new Error("invalid");
-    const data = await res.json();
-    window.location.href = appPortalUrl(`token=${encodeURIComponent(data.token)}&role=${role}`);
-  } catch {
-    loginError.value = true;
-  }
-}
-
-function openLogin() {
-  // Already signed in on this device? Skip the form and go straight
-  // to the full-page portal.
-  if (localStorage.getItem("dosedu_token")) {
-    window.location.href = appPortalUrl();
-    return;
-  }
-  showLoginModal.value = true;
-}
+const programIcons: Record<"prodlenka" | "mad" | "english" | "chinese", string> = {
+  prodlenka: "📚",
+  mad: "🧩",
+  english: "🇬🇧",
+  chinese: "🇨🇳",
+};
 </script>
 
 <template>
@@ -167,22 +229,15 @@ function openLogin() {
       </div>
 
       <nav class="hidden items-center gap-8 md:flex">
-        <button type="button" class="text-sm font-medium text-ink-muted hover:text-ink" @click="openTrial">
+        <a href="#placement-widget" class="text-sm font-medium text-ink-muted hover:text-ink">
           {{ t("nav.courses") }}
-        </button>
+        </a>
         <button type="button" class="text-sm font-medium text-ink-muted hover:text-ink" @click="showProdlenkaModal = true">
           {{ t("nav.prodlenka") }}
         </button>
       </nav>
 
       <div class="flex items-center gap-3">
-        <button
-          type="button"
-          class="font-accent rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast shadow-sm shadow-accent/30 hover:opacity-90"
-          @click="openLogin"
-        >
-          {{ t("nav.login") }}
-        </button>
         <LangSwitcher />
         <ThemeToggle />
       </div>
@@ -224,41 +279,133 @@ function openLogin() {
         </div>
       </div>
 
-      <div class="md:rotate-1">
+      <div id="placement-widget" class="scroll-mt-24">
         <div class="rounded-2xl border border-line bg-surface1 p-5 shadow-2xl shadow-accent/10 sm:p-6">
-          <div class="mb-4 flex items-center gap-1.5">
-            <span class="h-2.5 w-2.5 rounded-full bg-danger/60"></span>
-            <span class="h-2.5 w-2.5 rounded-full bg-badge4-fg/70"></span>
-            <span class="h-2.5 w-2.5 rounded-full bg-success/60"></span>
-          </div>
-
-          <p class="text-xs font-semibold text-ink-muted">{{ t("mockup.journalTitle") }}</p>
-          <div class="mt-2 space-y-2">
-            <div class="flex items-center justify-between rounded-lg bg-surface2 px-3 py-2 text-sm">
-              <span class="text-ink">Айгерім Т.</span>
-              <span class="font-numeric rounded-full bg-badge3 px-2 py-0.5 text-xs font-semibold text-badge3-fg">92</span>
-            </div>
-            <div class="flex items-center justify-between rounded-lg bg-surface2 px-3 py-2 text-sm">
-              <span class="text-ink">Дамир С.</span>
-              <span class="font-numeric rounded-full bg-badge3 px-2 py-0.5 text-xs font-semibold text-badge3-fg">88</span>
-            </div>
-          </div>
-
-          <p class="mt-5 text-xs font-semibold text-ink-muted">{{ t("mockup.scheduleTitle") }}</p>
-          <div class="mt-2 space-y-2">
-            <div class="flex items-center justify-between rounded-lg bg-surface2 px-3 py-2 text-sm text-ink">
-              <span>Дс, Ср, Жм</span>
-              <span class="text-ink-muted">16:00–17:30</span>
-            </div>
-          </div>
-
-          <p class="mt-5 text-xs font-semibold text-ink-muted">{{ t("mockup.balanceTitle") }}</p>
-          <div class="mt-2 flex items-center justify-between rounded-lg bg-accent px-3 py-3">
-            <span class="font-numeric text-2xl font-bold text-accent-contrast">15 000 ₸</span>
-            <span class="font-accent rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold text-accent-contrast">
-              {{ t("balance.paid") }}
+          <div class="mb-1 flex items-center justify-between">
+            <h2 class="font-display text-lg font-bold text-ink">{{ t("trial.title") }}</h2>
+            <span
+              v-if="trialStep === 'quiz' && trialQuestions.length"
+              class="font-numeric shrink-0 text-xs font-semibold text-ink-muted"
+            >
+              {{ t("trial.question") }} {{ trialQIndex + 1 }} / {{ trialQuestions.length }}
             </span>
           </div>
+
+          <div
+            v-if="trialStep === 'quiz' && trialQuestions.length"
+            class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface2"
+          >
+            <div
+              class="h-full rounded-full bg-accent transition-all duration-300 ease-out"
+              :style="{ width: `${((trialQIndex + 1) / trialQuestions.length) * 100}%` }"
+            ></div>
+          </div>
+
+          <template v-if="trialStep === 'pick'">
+            <p class="mb-4 mt-3 text-sm text-ink-muted">{{ t("trial.pickLanguage") }}</p>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                class="rounded-lg border border-line px-4 py-4 text-center text-sm font-semibold text-ink transition hover:-translate-y-0.5 hover:border-accent hover:text-accent"
+                @click="pickTrialLang('english')"
+              >
+                <span class="block text-2xl">🇬🇧</span>
+                <span class="mt-2 block">{{ t("trial.english") }}</span>
+              </button>
+              <button
+                type="button"
+                class="rounded-lg border border-line px-4 py-4 text-center text-sm font-semibold text-ink transition hover:-translate-y-0.5 hover:border-accent hover:text-accent"
+                @click="pickTrialLang('chinese')"
+              >
+                <span class="block text-2xl">🇨🇳</span>
+                <span class="mt-2 block">{{ t("trial.chinese") }}</span>
+              </button>
+            </div>
+          </template>
+
+          <template v-else-if="trialStep === 'quiz' && trialLang">
+            <template v-if="trialLoading">
+              <p class="mt-4 text-sm text-ink-muted">{{ t("trial.loading") }}</p>
+            </template>
+            <template v-else-if="trialLoadError">
+              <p class="mt-4 text-sm text-danger">{{ t("trial.loadError") }}</p>
+              <button
+                type="button"
+                class="mt-4 w-full rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink"
+                @click="loadTrialQuestions"
+              >
+                {{ t("trial.retry") }}
+              </button>
+            </template>
+            <template v-else-if="trialQuestions.length">
+              <Transition name="q-fade" mode="out-in">
+                <div :key="trialQIndex" class="mt-4">
+                  <p class="mb-4 text-sm font-medium text-ink">{{ trialQuestions[trialQIndex].question }}</p>
+                  <div class="space-y-2">
+                    <button
+                      v-for="(opt, i) in trialOptions(trialQuestions[trialQIndex])"
+                      :key="i"
+                      type="button"
+                      class="block w-full rounded-lg border border-line px-4 py-2 text-left text-sm text-ink transition hover:border-accent hover:text-accent"
+                      @click="answerTrial(i)"
+                    >
+                      {{ opt }}
+                    </button>
+                  </div>
+                </div>
+              </Transition>
+            </template>
+          </template>
+
+          <template v-else-if="trialStep === 'contact'">
+            <p class="mb-4 mt-3 text-sm text-ink-muted">{{ t("trial.contactPrompt") }}</p>
+            <form class="space-y-3" @submit.prevent="submitTrialContact">
+              <label class="block text-sm text-ink-muted">
+                {{ t("leadForm.fullName") }}
+                <input v-model="fullName" required class="mt-1" />
+              </label>
+              <label class="block text-sm text-ink-muted">
+                {{ t("leadForm.phone") }}
+                <input v-model="phone" type="tel" required class="mt-1" />
+              </label>
+              <label class="block text-sm text-ink-muted">
+                {{ t("trial.branchLabel") }}
+                <select v-model="trialBranchId" class="mt-1">
+                  <option value="">{{ t("trial.branchPlaceholder") }}</option>
+                  <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                :disabled="trialSubmitting"
+                class="font-accent w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:opacity-90 disabled:opacity-60"
+              >
+                {{ t("trial.submit") }}
+              </button>
+              <p v-if="trialRateLimited" class="text-center text-sm text-danger">{{ t("trial.rateLimited") }}</p>
+              <p v-else-if="trialSubmitError" class="text-center text-sm text-danger">{{ t("trial.submitError") }}</p>
+            </form>
+          </template>
+
+          <template v-else-if="trialStep === 'done'">
+            <div class="mt-3 text-center">
+              <p class="text-sm text-success">{{ t("trial.success") }}</p>
+              <p v-if="trialScore" class="font-numeric mt-3 text-3xl font-bold text-ink">
+                {{ trialScore.score }} / {{ trialScore.total }}
+              </p>
+              <p v-if="trialScore" class="text-xs text-ink-muted">{{ t("trial.scoreLabel") }}</p>
+              <p v-if="trialLevel" class="font-accent mt-3 inline-block rounded-full bg-badge1 px-4 py-1.5 text-sm font-semibold text-badge1-fg">
+                {{ t("trial.levelLabel", { level: trialLevel }) }}
+              </p>
+              <button
+                type="button"
+                class="mt-5 w-full rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-surface2"
+                @click="resetTrial"
+              >
+                {{ t("trial.startOver") }}
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -273,15 +420,18 @@ function openLogin() {
         <div
           v-for="key in (['prodlenka', 'mad', 'english', 'chinese'] as const)"
           :key="key"
-          class="rounded-2xl border border-line bg-surface2 p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/10"
+          class="flex flex-col rounded-2xl border border-line bg-surface2 p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-accent/10"
         >
-          <div class="flex flex-wrap items-center gap-2">
+          <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-badge1 text-xl">
+            {{ programIcons[key] }}
+          </span>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
             <h3 class="font-display text-lg font-bold text-ink">{{ t(`programs.${key}.title`) }}</h3>
-            <span class="font-accent rounded-full bg-badge1 px-2.5 py-1 text-xs font-semibold text-badge1-fg">
-              {{ t(`programs.${key}.badge`) }}
-            </span>
           </div>
-          <ul class="mt-4 space-y-2">
+          <span class="font-accent mt-1 inline-block w-fit rounded-full bg-badge1 px-2.5 py-1 text-xs font-semibold text-badge1-fg">
+            {{ t(`programs.${key}.badge`) }}
+          </span>
+          <ul class="mt-4 flex-1 space-y-2">
             <li
               v-for="(bullet, i) in (tm(`programs.${key}.bullets`) as unknown as string[])"
               :key="i"
@@ -290,6 +440,20 @@ function openLogin() {
               <span class="mt-0.5 text-teal">✓</span>{{ bullet }}
             </li>
           </ul>
+          <a
+            v-if="key === 'english' || key === 'chinese'"
+            href="#placement-widget"
+            class="mt-5 inline-flex w-fit items-center gap-1 border-t border-line pt-4 text-sm font-semibold text-accent hover:underline"
+          >
+            {{ t("programs.tryTest") }} →
+          </a>
+          <a
+            v-else
+            href="#contact"
+            class="mt-5 inline-flex w-fit items-center gap-1 border-t border-line pt-4 text-sm font-semibold text-accent hover:underline"
+          >
+            {{ t("prodlenka.cta") }} →
+          </a>
         </div>
       </div>
     </div>
@@ -431,87 +595,6 @@ function openLogin() {
 
   <Teleport to="body">
     <div
-      v-if="showTrialModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      @click.self="showTrialModal = false"
-    >
-      <div class="w-full max-w-sm rounded-2xl border border-line bg-surface1 p-6 shadow-xl">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="font-display text-lg font-bold text-ink">{{ t("trial.title") }}</h2>
-          <button type="button" class="text-ink-muted hover:text-ink" @click="showTrialModal = false">✕</button>
-        </div>
-
-        <template v-if="trialStep === 'pick'">
-          <p class="mb-4 text-sm text-ink-muted">{{ t("trial.pickLanguage") }}</p>
-          <div class="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              class="rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
-              @click="pickTrialLang('en')"
-            >
-              {{ t("trial.english") }}
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
-              @click="pickTrialLang('zh')"
-            >
-              {{ t("trial.chinese") }}
-            </button>
-          </div>
-        </template>
-
-        <template v-else-if="trialStep === 'quiz' && trialLang">
-          <p class="mb-1 text-xs text-ink-muted">
-            {{ t("trial.question") }} {{ trialQIndex + 1 }} / {{ quizBank[trialLang].length }}
-          </p>
-          <p class="mb-4 text-sm font-medium text-ink">{{ quizBank[trialLang][trialQIndex].q }}</p>
-          <div class="space-y-2">
-            <button
-              v-for="(opt, i) in quizBank[trialLang][trialQIndex].options"
-              :key="i"
-              type="button"
-              class="block w-full rounded-lg border border-line px-4 py-2 text-left text-sm text-ink transition hover:border-accent hover:text-accent"
-              @click="answerTrial(i)"
-            >
-              {{ opt }}
-            </button>
-          </div>
-        </template>
-
-        <template v-else-if="trialStep === 'contact'">
-          <p class="mb-4 text-sm text-ink-muted">{{ t("trial.contactPrompt") }}</p>
-          <form class="space-y-3" @submit.prevent="submitTrialContact">
-            <label class="block text-sm text-ink-muted">
-              {{ t("leadForm.fullName") }}
-              <input v-model="fullName" required class="mt-1" />
-            </label>
-            <label class="block text-sm text-ink-muted">
-              {{ t("leadForm.phone") }}
-              <input v-model="phone" type="tel" required class="mt-1" />
-            </label>
-            <button type="submit" class="font-accent w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:opacity-90">
-              {{ t("trial.submit") }}
-            </button>
-          </form>
-        </template>
-
-        <template v-else-if="trialStep === 'done'">
-          <p class="text-sm text-success">{{ t("trial.success") }}</p>
-          <button
-            type="button"
-            class="mt-4 w-full rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink"
-            @click="showTrialModal = false"
-          >
-            {{ t("login.logout") }}
-          </button>
-        </template>
-      </div>
-    </div>
-  </Teleport>
-
-  <Teleport to="body">
-    <div
       v-if="showProdlenkaModal"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       @click.self="showProdlenkaModal = false"
@@ -537,42 +620,19 @@ function openLogin() {
       </div>
     </div>
   </Teleport>
-
-  <Teleport to="body">
-    <div
-      v-if="showLoginModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      @click.self="showLoginModal = false"
-    >
-      <div class="w-full max-w-sm rounded-2xl border border-line bg-surface1 p-6 shadow-xl">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="font-display text-lg font-bold text-ink">{{ t("login.title") }}</h2>
-          <button type="button" class="text-ink-muted hover:text-ink" @click="showLoginModal = false">✕</button>
-        </div>
-
-        <form class="space-y-4" @submit.prevent="login">
-          <label class="block text-sm text-ink-muted">
-            {{ t("login.identifier") }}
-            <input v-model="identifier" required class="mt-1" />
-          </label>
-          <label class="block text-sm text-ink-muted">
-            {{ t("login.password") }}
-            <input v-model="password" type="password" inputmode="numeric" required minlength="4" maxlength="4" class="mt-1" />
-          </label>
-          <button type="submit" class="font-accent w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-contrast hover:opacity-90">
-            {{ t("login.submit") }}
-          </button>
-          <p v-if="loginError" class="text-center text-sm text-danger">{{ t("login.error") }}</p>
-          <button
-            type="button"
-            class="block w-full text-center text-xs text-ink-muted underline"
-            @click="showForgotPassword = !showForgotPassword"
-          >
-            {{ t("login.forgotPassword") }}
-          </button>
-          <p v-if="showForgotPassword" class="text-center text-xs text-ink-muted">{{ t("login.forgotPasswordHint") }}</p>
-        </form>
-      </div>
-    </div>
-  </Teleport>
 </template>
+
+<style scoped>
+.q-fade-enter-active,
+.q-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.q-fade-enter-from {
+  opacity: 0;
+  transform: translateX(16px);
+}
+.q-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+</style>

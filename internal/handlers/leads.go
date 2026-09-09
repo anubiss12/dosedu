@@ -50,6 +50,22 @@ func (d *Deps) CreateLead(c *gin.Context) {
 	})
 }
 
+// ListPublicBranches godoc
+// @Summary		Branches for the public lead/placement-test form
+// @Description	Unauthenticated, id+name only — populates the landing page's branch picker.
+// @Tags			public
+// @Produce		json
+// @Success		200	{object}	map[string]any
+// @Router			/public/branches [get]
+func (d *Deps) ListPublicBranches(c *gin.Context) {
+	branches, err := d.Branches.ListPublic(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load branches"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"branches": branches})
+}
+
 type MoveLeadStageRequest struct {
 	Stage string `json:"stage" binding:"required,oneof=new contacted trial_scheduled paid lost"`
 }

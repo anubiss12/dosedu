@@ -145,7 +145,7 @@ func GenerateComplexPassword(role Role, length int) (string, error) {
 func GenerateTeacherPassword(length int) (string, error) {
 	const (
 		letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz" // no O/I/l/o
-		digits  = "23456789"                                        // no 0/1
+		digits  = "23456789"                                         // no 0/1
 	)
 	all := letters + digits
 

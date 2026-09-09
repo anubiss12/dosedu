@@ -81,6 +81,7 @@ func main() {
 		TestAssignments:       repository.NewTestAssignmentRepo(store),
 		DailyLogs:             repository.NewDailyLogRepo(store),
 		Impersonation:         repository.NewImpersonationRepo(store),
+		ChurnAlerts:           repository.NewChurnAlertRepo(store),
 		TestUploads:           repository.NewTestUploadRepo(store),
 		Payments:              repository.NewPaymentRepo(store),
 		AI:                    ai.NewClient(cfg.AnthropicAPIKey),

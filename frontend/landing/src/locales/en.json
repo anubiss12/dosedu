@@ -5,8 +5,7 @@
   "nav": {
     "home": "Home",
     "courses": "Language Courses",
-    "prodlenka": "After-school Care",
-    "login": "Log in"
+    "prodlenka": "After-school Care"
   },
   "hero": {
     "title": "Your child's future starts with us!",
@@ -22,20 +21,6 @@
     "submit": "Request a consultation",
     "success": "Thank you! We'll be in touch shortly.",
     "error": "Something went wrong, please try again."
-  },
-  "login": {
-    "title": "Student/Parent sign in",
-    "roleStudent": "I'm a student",
-    "roleParent": "I'm a parent",
-    "identifierStudent": "Login",
-    "identifierParent": "Phone number",
-    "password": "4-digit code",
-    "submit": "Sign in",
-    "error": "Invalid login or code",
-    "logout": "Log out",
-    "identifier": "Login / phone",
-    "forgotPassword": "Forgot your password?",
-    "forgotPasswordHint": "Contact your teacher or the center's administration — your password will be reset."
   },
   "footer": {
     "about": "A unified platform for language courses and after-school care.",
@@ -62,11 +47,6 @@
     "download": "Download PDF",
     "sendTelegram": "Send via Telegram",
     "sent": "Sent!"
-  },
-  "mockup": {
-    "journalTitle": "Student journal",
-    "scheduleTitle": "Schedule",
-    "balanceTitle": "Balance"
   },
   "howItWorks": {
     "title": "How it works",
@@ -109,15 +89,24 @@
     "scoreLabel": "Correct answers",
     "contactPrompt": "Leave your contact details to get the full result and a recommendation",
     "submit": "Submit",
-    "success": "Thank you! We'll be in touch shortly."
+    "success": "Thank you! We'll be in touch shortly.",
+    "loading": "Loading questions…",
+    "loadError": "Couldn't load the test questions. Please try again.",
+    "retry": "Try again",
+    "submitError": "Couldn't submit your test. Please try again.",
+    "rateLimited": "Too many attempts. Please try again later.",
+    "branchLabel": "Branch",
+    "branchPlaceholder": "Choose a branch (optional)",
+    "levelLabel": "Your level: {level}!",
+    "startOver": "Start a new test"
   },
   "prodlenka": {
     "title": "After-school care",
-    "intro": "After classes, your child does homework, eats, and rests in a safe, supervised environment.",
-    "point1": "Homework supervised by a teacher",
-    "point2": "Daily meals and rest time",
+    "intro": "MAD and After-school Care are part-day groups: your child spends 3 hours a day, 5 days a week with us in a safe, supervised environment.",
+    "point1": "5 days a week (Mon–Fri), 3 hours a day",
+    "point2": "Full homework support: After-school Care covers every subject, MAD covers letters/sounds, counting, and basic logic",
     "point3": "Instant QR-based arrival/departure alerts for parents",
-    "cta": "Get a consultation"
+    "cta": "Book a trial day"
   },
   "practice": {
     "title": "Practice test",
@@ -129,9 +118,10 @@
   },
   "programs": {
     "title": "Programs",
+    "tryTest": "Take the free test",
     "prodlenka": {
       "title": "After-school care",
-      "badge": "Grades 1–4",
+      "badge": "Grades 1–4 · 3h × 5 days",
       "bullets": [
         "Homework check",
         "Lesson preparation",
@@ -143,7 +133,7 @@
     },
     "mad": {
       "title": "MAD Group",
-      "badge": "Ages 6–7",
+      "badge": "Ages 6–7 · 3h × 5 days",
       "bullets": [
         "Letters and sounds",
         "Counting",

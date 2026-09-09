@@ -53,7 +53,10 @@
     "gradebook": "Gradebook",
     "payment": "Payment",
     "tests": "Upload Tests",
-    "certificate": "Certificate"
+    "certificate": "Certificate",
+    "questionBank": "Question Bank",
+    "assignTest": "Assign Test",
+    "dailyLog": "Daily Log"
   },
   "schedule": {
     "room": "Room"
@@ -67,5 +70,29 @@
     "confirm": "Confirm",
     "success": "Payment confirmed.",
     "error": "Something went wrong."
+  },
+  "questionBank": {
+    "title": "Question Bank",
+    "poolPractice": "Practice",
+    "poolOfficial": "Official",
+    "empty": "No questions found for this level/pool."
+  },
+  "assignTest": {
+    "title": "Assign Official Test",
+    "loadQuestions": "Load Questions",
+    "assign": "Assign Test",
+    "success": "Test assigned successfully.",
+    "error": "Something went wrong.",
+    "wrongSubject": "This group does not belong to your subject."
+  },
+  "dailyLog": {
+    "title": "Daily Log",
+    "note": "Teacher's note",
+    "save": "Save",
+    "error": "Failed to save.",
+    "homeworkNA": "N/A",
+    "homeworkDone": "Done",
+    "homeworkPartial": "Partial",
+    "homeworkNotDone": "Not done"
   }
 }

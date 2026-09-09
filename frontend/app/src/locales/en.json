@@ -18,6 +18,7 @@
   },
   "progress": {
     "title": "Student progress",
+    "subject": "Subject",
     "level": "Level",
     "streak": "Day streak"
   },
@@ -44,16 +45,82 @@
   },
   "official": {
     "title": "Official level test",
-    "notice": "Will become available here once the exam time is announced."
+    "notice": "Tests assigned by a teacher or director will appear here.",
+    "start": "Start test",
+    "empty": "No active official tests right now.",
+    "attemptsAllowed": "Attempts allowed",
+    "alreadyTaken": "This test can only be taken once — you have already taken it.",
+    "backToList": "Back to list"
   },
   "results": {
     "title": "Results"
   },
-  "language": {
-    "choose": "Choose your language track",
-    "chooseHint": "This can only be set once.",
+  "subject": {
     "english": "English",
-    "chinese": "Chinese"
+    "chinese": "Chinese",
+    "mad": "MAD",
+    "prodlenka": "After-school care"
+  },
+  "assignment": {
+    "notAssignedTitle": "You haven't been assigned a level yet",
+    "notAssignedHint": "Your subject and level are assigned by a teacher or director — the test section will open here once that happens."
+  },
+  "dailyLog": {
+    "title": "Daily log",
+    "date": "Date",
+    "attendanceLabel": "Attendance",
+    "note": "Teacher's note",
+    "homeworkLabel": "Homework",
+    "empty": "No entries yet.",
+    "historyTitle": "View history",
+    "attendance": {
+      "present": "Present",
+      "absent": "Absent",
+      "excused": "Excused"
+    },
+    "homework": {
+      "done": "Done",
+      "not_done": "Not done",
+      "partial": "Partially done",
+      "n_a": "Not assigned"
+    }
+  },
+  "todayStatus": {
+    "title": "Today's session status",
+    "notCheckedIn": "Your child hasn't checked in yet",
+    "inProgress": "Your child is at the center",
+    "arrivedAt": "Arrived at",
+    "expectedEnd": "Ends at",
+    "remaining": "Remaining",
+    "minutesShort": "min",
+    "checkedOut": "Your child was picked up"
+  },
+  "calendar": {
+    "title": "Weekly attendance",
+    "weekday": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri"
+    },
+    "legend": {
+      "present": "Present",
+      "absent": "Absent",
+      "excused": "Excused",
+      "noData": "No data"
+    }
+  },
+  "pickup": {
+    "title": "Pickup & Safety",
+    "description": "Managing who's authorized to pick up your child, and a warning before the session ends, will appear here soon.",
+    "comingSoon": "Coming soon",
+    "featureWarning": "A 15-minute warning before the session ends",
+    "featureAuthorizedList": "A list of people authorized to pick up your child"
+  },
+  "payment": {
+    "title": "Subscription",
+    "expiresAt": "Expires on"
   },
   "quiz": {
     "locked": "This test has already been taken",
@@ -62,12 +129,46 @@
     "score": "Score",
     "retake": "Retake",
     "startPractice": "Start practice",
-    "startOfficial": "Start official test",
     "wrong": "Wrong answer",
+    "correct": "Correct",
+    "incorrect": "Incorrect",
+    "overview": "Overview",
     "correctAnswer": "Correct answer",
     "yourAnswer": "Your answer",
     "explain": "Explain with AI",
     "explainLoading": "Loading explanation…",
     "explainLangLabel": "Explanation language"
+  },
+  "streakBanner": {
+    "message": "🔥 {days}-day streak! Complete today's practice to keep it going",
+    "cta": "Start today's practice"
+  },
+  "progressLevel": {
+    "title": "Level progress",
+    "recentAverage": "Average score of the last {count} practice attempts",
+    "empty": "No practice history yet — start your first practice."
+  },
+  "scheduleTab": {
+    "title": "Schedule & QR",
+    "scheduleTitle": "Weekly class schedule",
+    "scheduleEmpty": "No class schedule assigned yet.",
+    "qrTitle": "Entry QR code",
+    "qrHint": "Show this code to the tablet at the entrance",
+    "qrLoading": "Loading QR code…",
+    "weekdays": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
+    }
+  },
+  "speakingClub": {
+    "title": "Native Speaker Speaking Club",
+    "description": "A live conversation club with a native-speaking teacher — builds listening and speaking skills.",
+    "comingSoon": "Coming soon",
+    "waitlistButton": "Join the waitlist"
   }
 }

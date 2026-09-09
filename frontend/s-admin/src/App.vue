@@ -11,7 +11,7 @@ const identifier = ref("");
 const password = ref("");
 const loginError = ref(false);
 
-type Tab = "health" | "branches" | "directors" | "logs";
+type Tab = "health" | "branches" | "directors" | "impersonation" | "logs";
 const activeTab = ref<Tab>("health");
 
 type Health = {
@@ -22,7 +22,10 @@ type Health = {
   disk_percent: number;
   db_pool: { total: number; idle: number; acquired: number };
   main_site: string;
-  app_site: string;
+  student_site: string;
+  teacher_site: string;
+  director_site: string;
+  admin_site: string;
 };
 const health = ref<Health | null>(null);
 let healthTimer: ReturnType<typeof setInterval> | undefined;
@@ -38,12 +41,47 @@ const branches = ref<Branch[]>([]);
 const newBranchName = ref("");
 const newBranchAddress = ref("");
 
-type DirectorAccount = { id: string; branch_id: string; branch_name: string; email: string; full_name: string };
+type DirectorAccount = {
+  id: string;
+  branch_id: string;
+  branch_name: string;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  is_network_owner: boolean;
+  created_at: string;
+};
 const directors = ref<DirectorAccount[]>([]);
 const newDirectorEmail = ref("");
 const newDirectorName = ref("");
 const newDirectorBranchId = ref("");
+const newDirectorIsNetworkOwner = ref(false);
 const newDirectorCredentials = ref<{ email: string; password: string; notice: string } | null>(null);
+
+// ============================================================
+// Impersonation (super-admin only): mint a short-lived token for
+// another role's account and hand it off to that role's subdomain,
+// mirroring the token-handoff technique landing/src/App.vue uses for
+// its own login (destructure window.location, rebuild the URL with a
+// #token=...&role=... hash) — adapted here to swap the *current*
+// subdomain (s-admin.<host>) for the target one instead of prefixing
+// a subdomain onto a root domain, since s-admin is itself already a
+// subdomain.
+// ============================================================
+type ImpersonateRole = "director" | "teacher" | "parent" | "student";
+const impersonateRole = ref<ImpersonateRole>("director");
+const impersonateTargetId = ref("");
+const impersonateError = ref(false);
+const impersonating = ref(false);
+
+type ImpersonationLogEntry = {
+  id: string;
+  super_admin_id: string;
+  target_role: string;
+  target_id: string;
+  created_at: string;
+};
+const impersonationLog = ref<ImpersonationLogEntry[]>([]);
 
 type SystemLog = { id: number; level: string; source: string; message: string; created_at: string };
 const logs = ref<SystemLog[]>([]);
@@ -114,6 +152,7 @@ async function createDirector() {
       email: newDirectorEmail.value,
       full_name: newDirectorName.value,
       branch_id: newDirectorBranchId.value,
+      is_network_owner: newDirectorIsNetworkOwner.value,
     }),
   });
   if (res.ok) {
@@ -125,7 +164,53 @@ async function createDirector() {
     };
     newDirectorEmail.value = "";
     newDirectorName.value = "";
+    newDirectorIsNetworkOwner.value = false;
     await loadDirectors();
+  }
+}
+
+async function loadImpersonationLog() {
+  if (!token.value) return;
+  const res = await fetch("/api/impersonate/log", { headers: authHeaders() });
+  if (res.ok) impersonationLog.value = (await res.json()).log ?? [];
+}
+
+function impersonatePortalUrl(role: string, jwt: string): string {
+  const { protocol, hostname, port } = window.location;
+  const portSuffix = port ? `:${port}` : "";
+  // s-admin (unlike landing) is itself already on a subdomain, so we
+  // strip the current leading label ("s-admin") instead of prefixing
+  // one onto a root domain.
+  const rootHost = hostname.replace(/^[^.]+\./, "");
+  const subdomain = role === "director" ? "director" : role === "teacher" ? "teacher" : "app";
+  return `${protocol}//${subdomain}.${rootHost}${portSuffix}/#token=${encodeURIComponent(jwt)}&role=${role}`;
+}
+
+async function impersonate() {
+  if (!token.value || !impersonateTargetId.value) return;
+  impersonateError.value = false;
+  impersonating.value = true;
+  // Open the tab synchronously, in direct response to the click, so
+  // browsers don't treat it as an unrequested popup — if we waited for
+  // the fetch below to resolve first, window.open() would no longer be
+  // considered a direct result of the user gesture and gets blocked.
+  // We navigate this pre-opened blank tab once we have the token.
+  const newTab = window.open("", "_blank");
+  try {
+    const res = await fetch(`/api/impersonate/${impersonateRole.value}/${impersonateTargetId.value}`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("request failed");
+    const data = await res.json();
+    if (newTab) newTab.location.href = impersonatePortalUrl(data.role, data.token);
+    impersonateTargetId.value = "";
+    await loadImpersonationLog();
+  } catch {
+    if (newTab) newTab.close();
+    impersonateError.value = true;
+  } finally {
+    impersonating.value = false;
   }
 }
 
@@ -145,6 +230,8 @@ function selectTab(tab: Tab) {
   if (tab === "health") {
     loadHealth();
     healthTimer = setInterval(loadHealth, 15000);
+  } else if (tab === "impersonation") {
+    loadImpersonationLog();
   }
 }
 
@@ -209,7 +296,7 @@ onUnmounted(() => clearInterval(healthTimer));
       <!-- Tabs -->
       <div class="flex gap-1 overflow-x-auto border-b border-line">
         <button
-          v-for="tab in (['health', 'branches', 'directors', 'logs'] as Tab[])"
+          v-for="tab in (['health', 'branches', 'directors', 'impersonation', 'logs'] as Tab[])"
           :key="tab"
           type="button"
           class="font-accent shrink-0 border-b-2 px-4 py-2 text-sm font-medium"
@@ -246,10 +333,31 @@ onUnmounted(() => clearInterval(healthTimer));
           </div>
           <div class="rounded-xl border border-line bg-surface2 p-4">
             <div class="flex items-center gap-2 text-sm text-ink-muted">
-              <span class="h-2 w-2 shrink-0 rounded-full" :class="statusColor(health.app_site)"></span>
-              {{ t("health.appSite") }}
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="statusColor(health.student_site)"></span>
+              {{ t("health.studentSite") }}
             </div>
-            <p class="font-numeric mt-1 text-lg font-semibold text-ink">{{ health.app_site }}</p>
+            <p class="font-numeric mt-1 text-lg font-semibold text-ink">{{ health.student_site }}</p>
+          </div>
+          <div class="rounded-xl border border-line bg-surface2 p-4">
+            <div class="flex items-center gap-2 text-sm text-ink-muted">
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="statusColor(health.teacher_site)"></span>
+              {{ t("health.teacherSite") }}
+            </div>
+            <p class="font-numeric mt-1 text-lg font-semibold text-ink">{{ health.teacher_site }}</p>
+          </div>
+          <div class="rounded-xl border border-line bg-surface2 p-4">
+            <div class="flex items-center gap-2 text-sm text-ink-muted">
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="statusColor(health.director_site)"></span>
+              {{ t("health.directorSite") }}
+            </div>
+            <p class="font-numeric mt-1 text-lg font-semibold text-ink">{{ health.director_site }}</p>
+          </div>
+          <div class="rounded-xl border border-line bg-surface2 p-4">
+            <div class="flex items-center gap-2 text-sm text-ink-muted">
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="statusColor(health.admin_site)"></span>
+              {{ t("health.adminSite") }}
+            </div>
+            <p class="font-numeric mt-1 text-lg font-semibold text-ink">{{ health.admin_site }}</p>
           </div>
         </div>
 
@@ -334,6 +442,10 @@ onUnmounted(() => clearInterval(healthTimer));
                 <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
               </select>
             </label>
+            <label class="flex items-center gap-2 text-sm text-ink-muted">
+              <input v-model="newDirectorIsNetworkOwner" type="checkbox" class="mt-0" />
+              {{ t("directors.networkOwner") }}
+            </label>
             <button type="submit" class="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast">
               {{ t("directors.create") }}
             </button>
@@ -351,7 +463,15 @@ onUnmounted(() => clearInterval(healthTimer));
         <div class="space-y-2 rounded-xl border border-line bg-surface2 p-5 shadow-sm">
           <h3 class="font-display text-sm font-semibold text-ink">{{ t("directors.list") }}</h3>
           <div v-for="dir in directors" :key="dir.id" class="rounded-lg border border-line bg-surface1 p-3 text-sm">
-            <p class="font-semibold text-ink">{{ dir.full_name || dir.email }}</p>
+            <p class="flex flex-wrap items-center gap-2 font-semibold text-ink">
+              {{ dir.full_name || dir.email }}
+              <span
+                v-if="dir.is_network_owner"
+                class="rounded-full bg-badge1 px-2 py-0.5 text-xs font-semibold text-badge1-fg"
+              >
+                {{ t("directors.networkOwnerBadge") }}
+              </span>
+            </p>
             <p class="text-ink-muted">{{ dir.email }}</p>
             <p class="text-xs text-ink-muted">{{ dir.branch_name }}</p>
           </div>
@@ -359,8 +479,73 @@ onUnmounted(() => clearInterval(healthTimer));
         </div>
       </section>
 
+      <!-- Impersonation -->
+      <section v-if="activeTab === 'impersonation'" class="mt-4 grid gap-4 sm:grid-cols-2">
+        <form class="space-y-3 rounded-xl border border-line bg-surface2 p-5 shadow-sm" @submit.prevent="impersonate">
+          <h3 class="font-display text-sm font-semibold text-ink">{{ t("impersonation.title") }}</h3>
+          <label class="block text-sm text-ink-muted">
+            {{ t("impersonation.role") }}
+            <select v-model="impersonateRole" required class="mt-1">
+              <option value="director">{{ t("impersonation.roleDirector") }}</option>
+              <option value="teacher">{{ t("impersonation.roleTeacher") }}</option>
+              <option value="parent">{{ t("impersonation.roleParent") }}</option>
+              <option value="student">{{ t("impersonation.roleStudent") }}</option>
+            </select>
+          </label>
+
+          <label v-if="impersonateRole === 'director'" class="block text-sm text-ink-muted">
+            {{ t("impersonation.targetId") }}
+            <select v-model="impersonateTargetId" required class="mt-1">
+              <option value="" disabled>—</option>
+              <option v-for="dir in directors" :key="dir.id" :value="dir.id">
+                {{ dir.full_name || dir.email }}
+              </option>
+            </select>
+          </label>
+          <label v-else class="block text-sm text-ink-muted">
+            {{ t("impersonation.targetId") }}
+            <input v-model="impersonateTargetId" required class="mt-1" :placeholder="t('impersonation.targetIdPlaceholder')" />
+            <span class="mt-1 block text-xs text-ink-muted">{{ t("impersonation.targetIdHint") }}</span>
+          </label>
+
+          <button
+            type="submit"
+            :disabled="impersonating"
+            class="w-full rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast disabled:opacity-60"
+          >
+            {{ t("impersonation.submit") }}
+          </button>
+          <p v-if="impersonateError" class="text-center text-sm text-danger">{{ t("impersonation.error") }}</p>
+        </form>
+
+        <div class="space-y-2 rounded-xl border border-line bg-surface2 p-5 shadow-sm">
+          <h3 class="font-display text-sm font-semibold text-ink">{{ t("impersonation.logTitle") }}</h3>
+          <p class="text-xs text-ink-muted">{{ t("impersonation.logHint") }}</p>
+          <div class="overflow-x-auto">
+            <table class="mt-2 w-full text-left text-sm">
+              <thead>
+                <tr class="border-b border-line text-xs text-ink-muted">
+                  <th class="py-1.5 pr-3 font-medium">{{ t("impersonation.logRole") }}</th>
+                  <th class="py-1.5 pr-3 font-medium">{{ t("impersonation.logTargetId") }}</th>
+                  <th class="py-1.5 font-medium">{{ t("impersonation.logCreatedAt") }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in impersonationLog" :key="entry.id" class="border-b border-line last:border-0">
+                  <td class="py-1.5 pr-3 text-ink">{{ entry.target_role }}</td>
+                  <td class="py-1.5 pr-3 font-numeric text-xs text-ink-muted">{{ entry.target_id }}</td>
+                  <td class="py-1.5 text-xs text-ink-muted">{{ new Date(entry.created_at).toLocaleString() }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="!impersonationLog.length" class="text-sm text-ink-muted">—</p>
+        </div>
+      </section>
+
       <!-- Logs -->
       <section v-if="activeTab === 'logs'" class="mt-4 space-y-2 rounded-xl border border-line bg-surface2 p-5 shadow-sm">
+        <h3 class="font-display mb-1 text-sm font-semibold text-ink">{{ t("logs.title") }}</h3>
         <div v-for="log in logs" :key="log.id" class="border-b border-line py-2 text-sm last:border-0">
           <span
             class="mr-2 rounded px-1.5 py-0.5 text-xs font-semibold"

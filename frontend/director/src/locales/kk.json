@@ -16,25 +16,38 @@
     "submit": "Кіру",
     "error": "Логин немесе құпия сөз қате"
   },
+  "branch": {
+    "switcher": "Филиал",
+    "all": "Барлық филиалдар",
+    "required": "Құру үшін жоғарыдан нақты филиалды таңдаңыз"
+  },
+  "subjects": {
+    "english": "Ағылшын тілі",
+    "chinese": "Қытай тілі",
+    "mad": "МАД тобы",
+    "prodlenka": "Продленка",
+    "unassigned": "— (тағайындалмаған)"
+  },
+  "courseTypes": {
+    "language": "Тіл курстары",
+    "care_and_prep": "МАД/Продленка"
+  },
   "leads": {
     "title": "Leads Kanban",
     "new": "Жаңа өтінім",
     "contacted": "Хабарласылды",
     "trial_scheduled": "Сынақ сабағына жазылды",
     "paid": "Төлем жасады",
-    "lost": "Жоғалтылды"
+    "lost": "Жоғалтылды",
+    "levelTest": "Деңгей тесті"
   },
   "staff": {
     "title": "Мұғалімдерді басқару",
     "add": "Мұғалім қосу",
     "fullName": "Аты-жөні",
-    "subject": "Пән / кабинет",
+    "subject": "Пән",
     "create": "Құру",
-    "list": "Мұғалімдер тізімі",
-    "languageScope": "Тіл бағыты",
-    "languageScopeNone": "— (мад/продленка)",
-    "languageScopeEn": "Ағылшын тілі",
-    "languageScopeZh": "Қытай тілі"
+    "list": "Мұғалімдер тізімі"
   },
   "students": {
     "title": "Оқушылар",
@@ -78,15 +91,20 @@
     "addGroup": "Топ қосу",
     "groupName": "Топ атауы",
     "teacher": "Мұғалім",
-    "languageCourse": "Тіл курстары",
-    "prodlenka": "Продленка",
     "level": "Деңгей",
     "addSlot": "Сабақ кестесіне қосу",
     "group": "Топ",
     "room": "Кабинет",
     "book": "Кестеге қосу",
-    "conflict": "Бұл кабinet/уақыт аралығы басқа сабаққа тағайындалған — конфликт бар.",
-    "grid": "Апталық кесте"
+    "conflict": "Бұл кабинет/уақыт аралығы басқа сабаққа тағайындалған — конфликт бар.",
+    "grid": "Апталық кесте",
+    "groupsList": "Топтар тізімі",
+    "manageRoster": "Құрамын басқару",
+    "hideRoster": "Жасыру",
+    "removeStudent": "Алып тастау",
+    "noRosterStudents": "Топта оқушы жоқ",
+    "selectStudent": "Оқушыны таңдаңыз",
+    "addStudent": "Қосу"
   },
   "tickets": {
     "new": "Жаңа өтініш",

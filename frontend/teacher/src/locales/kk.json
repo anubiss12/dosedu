@@ -53,7 +53,10 @@
     "gradebook": "Журнал",
     "payment": "Төлем",
     "tests": "Тест жүктеу",
-    "certificate": "Сертификат"
+    "certificate": "Сертификат",
+    "questionBank": "Сұрақтар банкі",
+    "assignTest": "Тест тағайындау",
+    "dailyLog": "Күнделікті есеп"
   },
   "schedule": {
     "room": "Кабинет"
@@ -67,5 +70,29 @@
     "confirm": "Растау",
     "success": "Төлем расталды.",
     "error": "Қате орын алды."
+  },
+  "questionBank": {
+    "title": "Сұрақтар банкі",
+    "poolPractice": "Жаттығу",
+    "poolOfficial": "Ресми",
+    "empty": "Бұл деңгей/пул үшін сұрақ табылмады."
+  },
+  "assignTest": {
+    "title": "Ресми тест тағайындау",
+    "loadQuestions": "Сұрақтарды жүктеу",
+    "assign": "Тест тағайындау",
+    "success": "Тест сәтті тағайындалды.",
+    "error": "Қате орын алды.",
+    "wrongSubject": "Бұл топ сіздің пәніңізге жатпайды."
+  },
+  "dailyLog": {
+    "title": "Күнделікті есеп",
+    "note": "Мұғалім ескертпесі",
+    "save": "Сақтау",
+    "error": "Сақталмады.",
+    "homeworkNA": "Қолданылмайды",
+    "homeworkDone": "Орындалды",
+    "homeworkPartial": "Жартылай орындалды",
+    "homeworkNotDone": "Орындалмады"
   }
 }

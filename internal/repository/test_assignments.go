@@ -14,13 +14,13 @@ import (
 var ErrAlreadyAttempted = errors.New("official test already attempted")
 
 type TestAssignment struct {
-	ID               string `json:"id"`
-	GroupID          string `json:"group_id"`
-	Subject          string `json:"subject"`
-	Level            string `json:"level"`
-	AttemptsAllowed  int    `json:"attempts_allowed"`
-	QuestionIDs      []string `json:"question_ids"`
-	CreatedAt        string `json:"created_at"`
+	ID              string   `json:"id"`
+	GroupID         string   `json:"group_id"`
+	Subject         string   `json:"subject"`
+	Level           string   `json:"level"`
+	AttemptsAllowed int      `json:"attempts_allowed"`
+	QuestionIDs     []string `json:"question_ids"`
+	CreatedAt       string   `json:"created_at"`
 }
 
 type TestAssignmentRepo struct{ store *Store }

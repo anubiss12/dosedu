@@ -15,17 +15,18 @@ type Question struct {
 }
 
 // QuestionFull additionally carries the correct answer — used
-// server-side only, for grading a submitted attempt. Deliberately not
-// embedding Question: an embedded field named "Question" would shadow
-// the string field of the same name and make q.Question ambiguous.
+// server-side for grading, and returned as-is to teachers (ListBank),
+// who are meant to see the answer key. Deliberately not embedding
+// Question: an embedded field named "Question" would shadow the string
+// field of the same name and make q.Question ambiguous.
 type QuestionFull struct {
-	ID            string
-	Question      string
-	OptionA       string
-	OptionB       string
-	OptionC       string
-	OptionD       string
-	CorrectOption int
+	ID            string `json:"id"`
+	Question      string `json:"question"`
+	OptionA       string `json:"option_a"`
+	OptionB       string `json:"option_b"`
+	OptionC       string `json:"option_c,omitempty"`
+	OptionD       string `json:"option_d,omitempty"`
+	CorrectOption int    `json:"correct_option"`
 }
 
 type QuestionRepo struct{ store *Store }
@@ -189,13 +190,13 @@ func (r *QuestionRepo) GetByIDs(ctx context.Context, ids []string) ([]QuestionFu
 // --- Test results (unified placement/practice/official attempt log) ---
 
 type TestResult struct {
-	ID       string `json:"id"`
-	Kind     string `json:"kind"`
-	Subject  string `json:"subject"`
-	Level    string `json:"level,omitempty"`
-	Score    int    `json:"score"`
-	Total    int    `json:"total"`
-	TakenAt  string `json:"taken_at"`
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Subject string `json:"subject"`
+	Level   string `json:"level,omitempty"`
+	Score   int    `json:"score"`
+	Total   int    `json:"total"`
+	TakenAt string `json:"taken_at"`
 }
 
 // RecordPlacement saves a public placement-test result, linked to the

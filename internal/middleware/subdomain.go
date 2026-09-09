@@ -10,15 +10,15 @@ import (
 )
 
 // subdomainForRole is the expected first label of the Host header for
-// each role, matching the subdomain layout in the spec:
-// dosedu.kz / student.dosedu.kz / teacher.dosedu.kz /
-// director.dosedu.kz / admin.dosedu.kz.
+// each role, matching the actual deployed subdomains in
+// deploy/nginx/conf.d/*.conf: dosedu.kz / app.dosedu.kz /
+// teacher.dosedu.kz / director.dosedu.kz / s-admin.dosedu.kz.
 var subdomainForRole = map[auth.Role]string{
-	auth.RoleSuperAdmin: "admin",
+	auth.RoleSuperAdmin: "s-admin",
 	auth.RoleDirector:   "director",
 	auth.RoleTeacher:    "teacher",
-	auth.RoleStudent:    "student",
-	auth.RoleParent:     "student",
+	auth.RoleStudent:    "app",
+	auth.RoleParent:     "app",
 }
 
 // RequireSubdomain is a defense-in-depth check on top of the existing

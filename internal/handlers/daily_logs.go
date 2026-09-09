@@ -27,11 +27,10 @@ type UpsertDailyLogRequest struct {
 // @Success		200		{object}	map[string]string
 // @Router			/teacher/daily-logs [post]
 func (d *Deps) UpsertDailyLog(c *gin.Context) {
+	// Role is already enforced by the /teacher route group's
+	// RequireAuth(sm, auth.RoleTeacher) — only the subject check below
+	// (mad/prodlenka vs english/chinese) is specific to this endpoint.
 	claims := c.MustGet("claims").(*auth.Claims)
-	if claims.Role != auth.RoleTeacher {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only teachers record daily logs"})
-		return
-	}
 	if claims.Subject != "mad" && claims.Subject != "prodlenka" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "daily logs are only for mad/prodlenka teachers"})
 		return

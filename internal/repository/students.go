@@ -92,6 +92,14 @@ func (r *StudentRepo) GetSummary(ctx context.Context, studentID string) (*Studen
 	return &s, nil
 }
 
+// GetQRToken returns a student's stable QR check-in token, for the
+// family-facing "show my QR code" screen.
+func (r *StudentRepo) GetQRToken(ctx context.Context, studentID string) (string, error) {
+	var token string
+	err := r.store.Pool.QueryRow(ctx, `SELECT qr_token FROM students WHERE id = $1`, studentID).Scan(&token)
+	return token, err
+}
+
 // SetLevel assigns/updates a student's CEFR/HSK level — called by a
 // teacher/director once a placement result or their own assessment
 // places the student (level is no longer self-declared by students).

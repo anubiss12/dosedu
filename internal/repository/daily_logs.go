@@ -1,18 +1,34 @@
 package repository
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
+
+// ChecklistItem is one subject/task line in a day's report (e.g. "Сауат
+// ашу" for MAD, or "Қазақ тілі" homework for prodlenka) — deliberately
+// free-text so it fits either program without hardcoding subject names
+// in the schema. Nothing writes this yet (see DailyLog.Checklist).
+type ChecklistItem struct {
+	Label string `json:"label"`
+	Done  bool   `json:"done"`
+}
 
 // DailyLog is one day's attendance + note + homework status for a
 // CARE_AND_PREP (mad/prodlenka) child — what the parent's dashboard
 // reads instead of any test/level data.
 type DailyLog struct {
-	ID              string `json:"id"`
-	StudentID       string `json:"student_id"`
-	LogDate         string `json:"log_date"`
+	ID               string `json:"id"`
+	StudentID        string `json:"student_id"`
+	LogDate          string `json:"log_date"`
 	AttendanceStatus string `json:"attendance_status"`
-	TeacherNote     string `json:"teacher_note,omitempty"`
-	HomeworkStatus  string `json:"homework_status"`
-	CreatedAt       string `json:"created_at"`
+	TeacherNote      string `json:"teacher_note,omitempty"`
+	HomeworkStatus   string `json:"homework_status"`
+	// Checklist is nil until the teacher-side entry UI (a separate,
+	// not-yet-built task) starts writing it — the parent UI falls back
+	// to HomeworkStatus while it's absent.
+	Checklist []ChecklistItem `json:"checklist,omitempty"`
+	CreatedAt string          `json:"created_at"`
 }
 
 type DailyLogRepo struct{ store *Store }
@@ -44,7 +60,7 @@ func (r *DailyLogRepo) Upsert(ctx context.Context, studentID, logDate, attendanc
 // first — the parent's "attendance / note / homework" view.
 func (r *DailyLogRepo) ListByStudent(ctx context.Context, studentID string, limit int) ([]DailyLog, error) {
 	rows, err := r.store.Pool.Query(ctx, `
-		SELECT id, student_id, log_date::text, attendance_status::text, COALESCE(teacher_note, ''), homework_status::text, created_at::text
+		SELECT id, student_id, log_date::text, attendance_status::text, COALESCE(teacher_note, ''), homework_status::text, checklist, created_at::text
 		FROM daily_logs
 		WHERE student_id = $1
 		ORDER BY log_date DESC
@@ -58,8 +74,14 @@ func (r *DailyLogRepo) ListByStudent(ctx context.Context, studentID string, limi
 	var out []DailyLog
 	for rows.Next() {
 		var l DailyLog
-		if err := rows.Scan(&l.ID, &l.StudentID, &l.LogDate, &l.AttendanceStatus, &l.TeacherNote, &l.HomeworkStatus, &l.CreatedAt); err != nil {
+		var checklistRaw []byte
+		if err := rows.Scan(&l.ID, &l.StudentID, &l.LogDate, &l.AttendanceStatus, &l.TeacherNote, &l.HomeworkStatus, &checklistRaw, &l.CreatedAt); err != nil {
 			return nil, err
+		}
+		if len(checklistRaw) > 0 {
+			if err := json.Unmarshal(checklistRaw, &l.Checklist); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, l)
 	}

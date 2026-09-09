@@ -18,6 +18,7 @@
   },
   "progress": {
     "title": "学生学习进度",
+    "subject": "科目",
     "level": "级别",
     "streak": "连续学习天数"
   },
@@ -44,16 +45,82 @@
   },
   "official": {
     "title": "官方分级测试",
-    "notice": "考试时间公布后将在此处开放。"
+    "notice": "教师或校长布置的测试将显示在此处。",
+    "start": "开始测试",
+    "empty": "目前没有进行中的官方测试。",
+    "attemptsAllowed": "允许尝试次数",
+    "alreadyTaken": "该测试只能参加一次 — 您已经完成过了。",
+    "backToList": "返回列表"
   },
   "results": {
     "title": "成绩"
   },
-  "language": {
-    "choose": "选择语言方向",
-    "chooseHint": "此设置只能选择一次。",
+  "subject": {
     "english": "英语",
-    "chinese": "中文"
+    "chinese": "中文",
+    "mad": "МАД",
+    "prodlenka": "课后托管"
+  },
+  "assignment": {
+    "notAssignedTitle": "您尚未被分配级别",
+    "notAssignedHint": "科目和级别由教师或校长分配 — 分配后测试部分将在此处开放。"
+  },
+  "dailyLog": {
+    "title": "每日记录",
+    "date": "日期",
+    "attendanceLabel": "出勤情况",
+    "note": "教师备注",
+    "homeworkLabel": "家庭作业",
+    "empty": "暂无记录。",
+    "historyTitle": "查看历史记录",
+    "attendance": {
+      "present": "已出勤",
+      "absent": "缺勤",
+      "excused": "请假"
+    },
+    "homework": {
+      "done": "已完成",
+      "not_done": "未完成",
+      "partial": "部分完成",
+      "n_a": "未布置"
+    }
+  },
+  "todayStatus": {
+    "title": "今日课程状态",
+    "notCheckedIn": "您的孩子今天还没有到中心",
+    "inProgress": "您的孩子正在中心",
+    "arrivedAt": "到达时间",
+    "expectedEnd": "结束时间",
+    "remaining": "剩余时间",
+    "minutesShort": "分钟",
+    "checkedOut": "您的孩子已被接走"
+  },
+  "calendar": {
+    "title": "每周出勤情况",
+    "weekday": {
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五"
+    },
+    "legend": {
+      "present": "已出勤",
+      "absent": "缺勤",
+      "excused": "请假",
+      "noData": "无数据"
+    }
+  },
+  "pickup": {
+    "title": "接送与安全",
+    "description": "管理谁被授权接走您的孩子，以及课程结束前的提醒功能即将上线。",
+    "comingSoon": "即将上线",
+    "featureWarning": "课程结束前15分钟提醒",
+    "featureAuthorizedList": "授权接送人员名单"
+  },
+  "payment": {
+    "title": "订阅",
+    "expiresAt": "到期日期"
   },
   "quiz": {
     "locked": "该测试已完成",
@@ -62,12 +129,46 @@
     "score": "成绩",
     "retake": "重新测试",
     "startPractice": "开始练习",
-    "startOfficial": "开始正式测试",
     "wrong": "错误答案",
+    "correct": "正确",
+    "incorrect": "错误",
+    "overview": "总览",
     "correctAnswer": "正确答案",
     "yourAnswer": "你的答案",
     "explain": "AI 解释",
     "explainLoading": "正在加载解释…",
     "explainLangLabel": "解释语言"
+  },
+  "streakBanner": {
+    "message": "🔥 连续学习{days}天！完成今天的练习以保持连续记录",
+    "cta": "开始今天的练习"
+  },
+  "progressLevel": {
+    "title": "级别进度",
+    "recentAverage": "最近{count}次练习的平均成绩",
+    "empty": "暂无练习记录 — 开始你的第一次练习吧。"
+  },
+  "scheduleTab": {
+    "title": "课程表和二维码",
+    "scheduleTitle": "每周课程表",
+    "scheduleEmpty": "课程表尚未安排。",
+    "qrTitle": "入场二维码",
+    "qrHint": "请在入口的平板电脑上出示此二维码",
+    "qrLoading": "二维码加载中…",
+    "weekdays": {
+      "1": "周一",
+      "2": "周二",
+      "3": "周三",
+      "4": "周四",
+      "5": "周五",
+      "6": "周六",
+      "7": "周日"
+    }
+  },
+  "speakingClub": {
+    "title": "外教口语俱乐部",
+    "description": "与母语教师进行实时对话俱乐部 — 提升听力和口语能力。",
+    "comingSoon": "即将上线",
+    "waitlistButton": "加入等候名单"
   }
 }

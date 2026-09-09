@@ -5,8 +5,7 @@
   "nav": {
     "home": "首页",
     "courses": "语言课程",
-    "prodlenka": "课后托管",
-    "login": "登录"
+    "prodlenka": "课后托管"
   },
   "hero": {
     "title": "孩子的未来，从我们开始！",
@@ -22,20 +21,6 @@
     "submit": "预约咨询",
     "success": "谢谢！我们会尽快与您联系。",
     "error": "出现错误，请重试。"
-  },
-  "login": {
-    "title": "学生/家长登录",
-    "roleStudent": "我是学生",
-    "roleParent": "我是家长",
-    "identifierStudent": "登录名",
-    "identifierParent": "电话号码",
-    "password": "4位数字密码",
-    "submit": "登录",
-    "error": "登录名或密码错误",
-    "logout": "退出",
-    "identifier": "登录名 / 电话",
-    "forgotPassword": "忘记密码？",
-    "forgotPasswordHint": "请联系您的教师或中心管理员——我们会为您重置密码。"
   },
   "footer": {
     "about": "语言课程与课后托管的统一教育平台。",
@@ -62,11 +47,6 @@
     "download": "下载PDF",
     "sendTelegram": "通过Telegram发送",
     "sent": "已发送！"
-  },
-  "mockup": {
-    "journalTitle": "学生档案",
-    "scheduleTitle": "课程表",
-    "balanceTitle": "余额"
   },
   "howItWorks": {
     "title": "工作流程",
@@ -109,15 +89,24 @@
     "scoreLabel": "正确数",
     "contactPrompt": "请留下联系方式以获取完整结果和建议",
     "submit": "提交",
-    "success": "谢谢！我们会尽快与您联系。"
+    "success": "谢谢！我们会尽快与您联系。",
+    "loading": "正在加载题目…",
+    "loadError": "无法加载测试题目，请重试。",
+    "retry": "重试",
+    "submitError": "提交测试失败，请重试。",
+    "rateLimited": "尝试次数过多，请稍后再试。",
+    "branchLabel": "分校",
+    "branchPlaceholder": "选择分校（选填）",
+    "levelLabel": "您的水平：{level}！",
+    "startOver": "重新开始测试"
   },
   "prodlenka": {
     "title": "课后托管",
-    "intro": "放学后，您的孩子将在安全、受监督的环境中完成作业、用餐和休息。",
-    "point1": "教师监督下完成作业",
-    "point2": "每日用餐和休息时间",
+    "intro": "MAD学前班和课后托管都是半日制小组：孩子每周5天、每天3小时在安全、受监督的环境中学习。",
+    "point1": "每周5天（周一至周五），每天3小时",
+    "point2": "全程作业辅导：课后托管涵盖所有学科，MAD学前班涵盖字母/发音、数数和基础逻辑",
     "point3": "扫码到离即时通知家长",
-    "cta": "获取咨询"
+    "cta": "预约体验日"
   },
   "practice": {
     "title": "练习测试",
@@ -129,9 +118,10 @@
   },
   "programs": {
     "title": "课程项目",
+    "tryTest": "参加免费测试",
     "prodlenka": {
       "title": "课后托管",
-      "badge": "1–4年级",
+      "badge": "1–4年级 · 每天3小时×5天",
       "bullets": [
         "检查家庭作业",
         "预习功课",
@@ -143,7 +133,7 @@
     },
     "mad": {
       "title": "MAD学前班",
-      "badge": "6–7岁",
+      "badge": "6–7岁 · 每天3小时×5天",
       "bullets": [
         "字母与发音",
         "数数",
